@@ -87,7 +87,8 @@ def parse_gbff(path):
     assert len(gbff_files) == 5, 'Missing "*.gbff.gz" files? Found %d (<5):\n%s' % (len(gbff_files), '\n'.join(gbff_files))
     main(refseq_folder)
 
-if __name__ == '__main__':
+
+def main():
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
     else:
@@ -102,3 +103,6 @@ if __name__ == '__main__':
         parse_gbff(DATA_FOLDER)
     finally:
         sys.stdout.close()
+
+if __name__ == '__main__':
+    main()
