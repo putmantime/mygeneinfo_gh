@@ -25,3 +25,4 @@ taxid_d = {'human': 9606,
            }
 
 DATA_FOLDER = '<path_to_data_folder>'
+DATA_ARCHIVE_ROOT = '<path_to_data_archive_root_folder>'

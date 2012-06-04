@@ -1,8 +1,6 @@
 import copy
 import types
-import os
 import datetime
-import base64
 import importlib
 from mongokit import Document, CustomType
 from utils.mongo import get_src_conn
