@@ -1,6 +1,8 @@
 # use glob syntax
 syntax: glob
 *.pyc
+*.pyo
+src/config.py
 
 # use regexp syntax
 syntax: regexp
