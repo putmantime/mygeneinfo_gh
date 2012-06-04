@@ -17,6 +17,7 @@ import sys
 import os
 import os.path
 import time
+sys.path.append('../../')
 from utils.common import ask, safewfile, LogPrint
 from config import DATA_ARCHIVE_ROOT
 
