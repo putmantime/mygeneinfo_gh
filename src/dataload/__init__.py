@@ -99,11 +99,11 @@ def register_sources():
 
 #register_sources()
 
-def load_all():
+def load_all(**kwargs):
     for src in __sources__:
         print "Loading %s..." % src
         _src = conn[src+'_doc']()
-        _src.load()
+        _src.load(**kwargs)
 
 def get_mapping():
     mapping = {}

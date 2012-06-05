@@ -20,7 +20,8 @@ import time
 from Bio import SeqIO
 
 sys.path.append('../../')
-from utils.common import SubStr, anyfile
+from utils.common import SubStr
+from utils.dataload import anyfile
 from config import DATA_ARCHIVE_ROOT
 
 timestamp = time.strftime('%Y%m%d')
