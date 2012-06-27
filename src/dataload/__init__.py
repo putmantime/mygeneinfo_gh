@@ -1,3 +1,5 @@
+'''data_load module is for loading individual genedocs from various data sources.'''
+
 import copy
 import types
 import datetime
