@@ -1,17 +1,34 @@
 import os.path
-from config import species_li, taxid_d, DATA_FOLDER
+from config import species_li, taxid_d, DATA_ARCHIVE_ROOT
 from utils.common import file_newer, loadobj, dump
 from utils.dataload import (load_start, load_done,
                             tab2dict, tab2list, value_convert, normalized_value,
                             dict_convert, dict_to_list,
                             )
 
+DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez/current')
+
 class EntrezParserBase(object):
     def __init__(self):
-        self.species_li = species_li
-        self.taxid_set = set([taxid_d[species] for species in species_li])
+        #if species_li is None, include all species
+        self.set_species_li(species_li)
         self.DATA_FOLDER = DATA_FOLDER
         self.datafile = os.path.join(self.DATA_FOLDER, self.DATAFILE)
+
+    def set_all_species(self):
+        '''To load all species.'''
+        self.species_li = None
+        self.taxid_set = None
+        self.species_filter = None
+
+    def set_species_li(self, species_li):
+        '''To load only specied species if species_li is not None.'''
+        if species_li:
+            self.species_li = species_li
+            self.taxid_set = set([taxid_d[species] for species in species_li])
+            self.species_filter = lambda ld:int(ld[0]) in self.taxid_set
+        else:
+            self.set_all_species()
 
     def load(self, aslist=False):
         raise NotImplementedError
@@ -34,7 +51,7 @@ class GeneInfoParser(EntrezParserBase):
 
         '''
         load_start(self.datafile)
-        gene_d = tab2dict(self.datafile, (0,1,2,4,5,7,8,9), key=1, alwayslist=0, includefn=lambda ld:int(ld[0]) in self.taxid_set)
+        gene_d = tab2dict(self.datafile, (0,1,2,4,5,7,8,9), key=1, alwayslist=0, includefn=self.species_filter)
         def _ff(d):
             (taxid, symbol, synonyms,
             dbxrefs,map_location,
@@ -80,14 +97,20 @@ class GeneInfoParser(EntrezParserBase):
 
 
 
-def get_geneid_d(species_li, load_cache=True, save_cache=True):
+def get_geneid_d(species_li=None, load_cache=True, save_cache=True):
     '''return a dictionary of current/retired geneid to current geneid mapping.
        This is useful, when other annotations were mapped to geneids may contain
        retired gene ids.
 
+       if species_li is None, genes from all species are loaded.
+
        Note that all ids are int type.
     '''
-    taxid_set = set([taxid_d[species] for species in species_li])
+    if species_li:
+        taxid_set = set([taxid_d[species] for species in species_li])
+    else:
+        taxid_set = None
+
     orig_cwd = os.getcwd()
     os.chdir(DATA_FOLDER)
 
@@ -106,12 +129,21 @@ def get_geneid_d(species_li, load_cache=True, save_cache=True):
 
     DATAFILE = os.path.join(DATA_FOLDER, 'gene/gene_info.gz')
     load_start(DATAFILE)
-    geneid_li = set(tab2list(DATAFILE, 1, includefn=lambda ld:int(ld[0]) in taxid_set))
+    if species_li:
+        species_filter = lambda ld:int(ld[0]) in taxid_set
+    else:
+        species_filter = None
+    geneid_li = set(tab2list(DATAFILE, 1, includefn=species_filter))
     load_done('[%d]' % len(geneid_li))
 
     DATAFILE = os.path.join(DATA_FOLDER, 'gene/gene_history.gz')
     load_start(DATAFILE)
-    retired2gene = tab2dict(DATAFILE, (1,2), 1, alwayslist=0, includefn=lambda ld:int(ld[0]) in taxid_set and ld[1] in geneid_li)
+
+    if species_li:
+        _includefn = lambda ld:int(ld[0]) in taxid_set and ld[1] in geneid_li
+    else:
+        _includefn = lambda ld:ld[1] in geneid_li    #include all species
+    retired2gene = tab2dict(DATAFILE, (1,2), 1, alwayslist=0, includefn=_includefn)
     # includefn above makes sure taxid is for species_li and filters out those mapped_to geneid exists in gene_info list
 
     load_done('[%d]' % len(retired2gene))
@@ -122,7 +154,10 @@ def get_geneid_d(species_li, load_cache=True, save_cache=True):
         out_d[_g] = _g
 
     if save_cache:
-        dump((taxid_set, out_d), _cache_file)
+        if species_li:
+            dump((taxid_set, out_d), _cache_file)
+        else:
+            dump((None, out_d), _cache_file)
 
     os.chdir(orig_cwd)
     return out_d
@@ -139,7 +174,7 @@ class HomologeneParser(EntrezParserBase):
         d = {}
         for i, species in enumerate(species_li):
             d[taxid_d[species]] = i
-        gene_li = [(d[taxid], taxid, geneid) for taxid, geneid in homologenes]
+        gene_li = [(d.get(taxid, taxid), taxid, geneid) for taxid, geneid in homologenes]
         return [g[1:] for g in sorted(gene_li)]
 
     def load(self, aslist=False):
@@ -147,18 +182,18 @@ class HomologeneParser(EntrezParserBase):
         loading ncbi "homologene.data" file
         adding "homologene" field in gene doc
         '''
-        taxid_set = set([taxid_d[species] for species in self.species_li])
+
         load_start(self.datafile)
         with file(self.datafile) as df:
             homologene_d = {}
             doc_li = []
             print
-            geneid_d = get_geneid_d(species_li)
+            geneid_d = get_geneid_d(self.species_li)
 
             for line in df:
                 ld=line.strip().split('\t')
                 hm_id, tax_id, geneid = [int(x) for x in ld[:3]]
-                if tax_id in taxid_set and geneid in geneid_d:
+                if (self.taxid_set is None or tax_id in self.taxid_set) and geneid in geneid_d:
                     #for selected species only
                     #and also ignore those geneid does not match any existing gene doc
                     geneid = geneid_d[geneid]   # in case of orignal geneid is retired, replaced with the new one, if available.
@@ -210,7 +245,7 @@ class Gene2AccessionParserBase(EntrezParserBase):
     def load(self, aslist=False):
         load_start(self.datafile)
         gene2acc = tab2dict(self.datafile, (1,3,5,7), 0, alwayslist=1,
-                            includefn=lambda ld:int(ld[0]) in self.taxid_set)
+                            includefn=self.species_filter)
         def _ff(d):
             out = {'rna':[],
                    'protein':[],
@@ -274,7 +309,7 @@ class Gene2GOParser(EntrezParserBase):
     def load(self, aslist=False):
         load_start(self.datafile)
         gene2go = tab2dict(self.datafile, (1,2,5,7), 0, alwayslist=1,
-                           includefn=lambda ld:int(ld[0]) in self.taxid_set)
+                           includefn=self.species_filter)
         category_d = {'Function': 'MF',
                       'Process':  'BP',
                       'Component': 'CC'}
@@ -311,8 +346,12 @@ class Gene2RetiredParser(EntrezParserBase):
     DATAFILE = 'gene/gene_history.gz'
     def load(self, aslist=False):
         load_start(self.datafile)
+        if self.species_li:
+            _includefn = lambda ld:int(ld[0]) in self.taxid_set and ld[1]!='-'
+        else:
+            _includefn = lambda ld: ld[1]!='-'
         gene2retired = tab2dict(self.datafile, (1,2), 0, alwayslist=1,
-                                includefn=lambda ld:int(ld[0]) in self.taxid_set and ld[1]!='-')
+                                includefn=_includefn)
         gene2retired = dict_convert(gene2retired, valuefn=lambda x: normalized_value([int(xx) for xx in x]))
 
         gene_d = {}

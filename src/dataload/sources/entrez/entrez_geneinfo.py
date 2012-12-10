@@ -8,6 +8,14 @@ structure = {'taxid': int,
 string_fields = ['name', 'symbol', 'map_location', 'type_of_gene',
                  'HGNC', 'HPRD', 'MIM', 'MGI', 'RATMAP', 'RGD', 'FLYBASE',
                  'WormBase', 'TAIR', 'ZFIN', 'Xenbase']
+
+Extra_fileds = ['APHIDBASE', 'AnimalQTLdb', 'ApiDB_CryptoDB', 'BEEBASE',
+                'BEETLEBASE', 'BGD', 'CGNC', 'ECOCYC', 'EcoGene', 'InterPro',
+                'MaizeGDB', 'NASONIABASE', 'PBR', 'PFAM', 'Pathema', 'PseudoCap',
+                'SGD', 'UniProtKB/Swiss-Prot', 'VBRC', 'VectorBase', 'Vega',
+                'dictyBase', 'miRBase']
+string_fields += Extra_fileds
+
 for field in string_fields:
     structure[field] = unicode
 
@@ -19,13 +27,14 @@ __metadata__ = {
 }
 
 def load_genedoc(self):
-    genedoc_d = GeneInfoParser().load()
+    parser = GeneInfoParser()
+    parser.set_all_species()
+    genedoc_d = parser.load()
     return genedoc_d
 
 def get_mapping(self):
     mapping = {
-        "entrezgene": {"type": "long",
-                       "boost": 10.0},
+        "entrezgene": {"type": "long"},
         "taxid":  {"type": "integer",
                    "include_in_all": False},
         "alias":  {"type": "string"},
@@ -40,6 +49,12 @@ def get_mapping(self):
                          "type": "string",
                          "include_in_all": False},
         "type_of_gene": {"index": "no",
+                         "type": "string",
+                         "include_in_all": False},
+        "AnimalQTLdb":  {"index": "no",
+                         "type": "string",
+                         "include_in_all": False},
+        "Vega":         {"index": "no",
                          "type": "string",
                          "include_in_all": False},
 
@@ -88,6 +103,13 @@ def get_mapping(self):
                  "analyzer": "string_lowercase",
                  "include_in_all": False,
                  "index_name": 'xenbase'},
+
+        "miRBase":{"type": "string",
+                 "analyzer": "string_lowercase",
+                 "include_in_all": True,
+                 "index_name": 'mirbase'},
+
+
     }
     return mapping
 

@@ -7,7 +7,9 @@ __metadata__ = {
 }
 
 def load_genedoc(self):
-    gene2go = Gene2GOParser().load()
+    parser = Gene2GOParser()
+    parser.set_all_species()
+    gene2go = parser.load()
     return gene2go
 
 def get_mapping(self):

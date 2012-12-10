@@ -6,7 +6,9 @@ __metadata__ = {
 }
 
 def load_genedoc(self):
-    gene2homologene = HomologeneParser().load()
+    parser = HomologeneParser()
+    parser.set_all_species()
+    gene2homologene = parser.load()
     return gene2homologene
 
 def get_mapping(self):

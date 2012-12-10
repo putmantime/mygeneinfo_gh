@@ -7,7 +7,9 @@ __metadata__ = {
 }
 
 def load_genedoc(self):
-    gene2retired = Gene2RetiredParser().load()
+    parser = Gene2RetiredParser()
+    parser.set_all_species()
+    gene2retired = parser.load()
     return gene2retired
 
 def get_mapping(self):
