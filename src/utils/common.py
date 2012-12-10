@@ -186,4 +186,3 @@ def loadobj(filename):
     file.close()
     return object
 
-
