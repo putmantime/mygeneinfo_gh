@@ -14,10 +14,16 @@
 
 import os.path
 import types
+import itertools
 import csv
 csv.field_size_limit(10000000)  #default is 131072, too small for some big files
 
-import anyjson as json
+try:
+    import anyjson as json
+except
+    import json
+    print "[Warning] Using build-in json module."
+
 from utils.common import safewfile
 
 #===============================================================================
@@ -158,6 +164,39 @@ def tabfile_tester(datafile, header=1, sep='\t'):
         print "Error at line number:", lineno
         raise
 
+def dupline_seperator(dupline, dup_sep, dup_idx=None, strip=False):
+    '''
+    for a line like this:
+        a   b1,b2  c1,c2
+
+    return a generator of this list (breaking out of the duplicates in each field):
+        [(a,b1,c1),
+         (a,b2,c1),
+         (a,b1,c2),
+         (a,b2,c2)]
+    example:
+         dupline_seperator(dupline=['a', 'b1,b2', 'c1,c2'],
+                           dup_idx=[1,2],
+                           dup_sep=',')
+    if dup_idx is None, try to split on every field.
+    if strip is True, also tripe out of extra spaces.
+    '''
+    value_li = list(dupline)
+    for idx, value in enumerate(value_li):
+        if dup_idx:
+            if idx in dup_idx:
+                value = value.split(dup_sep)
+                if strip:
+                    value = [x.strip() for x in value]
+            else:
+                value = [value]
+        else:
+            value = value.split(dup_sep)
+            if strip:
+                value = [x.strip() for x in value]
+        value_li[idx] = value
+    return itertools.product(*value_li)    #itertools.product fits exactly the purpose here
+
 def tabfile_feeder(datafile, header=1, sep='\t', includefn=None, coerce_unicode=True):
     '''a generator for each row in the file.'''
 
@@ -172,10 +211,10 @@ def tabfile_feeder(datafile, header=1, sep='\t', includefn=None, coerce_unicode=
             if not includefn or includefn(ld):
                 lineno += 1
                 if coerce_unicode:
-                    yield [unicode(x) for x in ld]
+                    yield [unicode(x, encoding='utf-8') for x in ld]
                 else:
                     yield ld
-    except:
+    except ValueError:
         print "Error at line number:", lineno
         raise
 
