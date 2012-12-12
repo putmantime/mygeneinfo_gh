@@ -2,6 +2,7 @@ import sys
 import time
 import base64
 import os
+import types
 
 #===============================================================================
 # Misc. Utility functions
@@ -163,26 +164,64 @@ def file_newer(source,target):
 def dump(object, filename, bin = 1):
     '''Saves a compressed object to disk
     '''
-    import gzip, pickle
+    import gzip
+    import cPickle as pickle
     print 'Dumping into "%s"...' % filename ,
     file = gzip.GzipFile(filename, 'wb')
-    file.write(pickle.dumps(object, bin))
+    pickle.dump(object, file, protocol=bin)
     file.close()
     print 'Done. [%s]' % os.stat(filename).st_size
 
+def dump2gridfs(object, filename, db, bin=1):
+    '''Save a compressed object to MongoDB gridfs.'''
+    import gzip, gridfs
+    import cPickle as pickle
+    print 'Dumping into "MongoDB:%s/%s"...' % (db.name, filename) ,
+    fs = gridfs.GridFS(db)
+    if fs.exists(_id=filename):
+        fs.delete(filename)
+    fobj = fs.new_file(filename=filename, _id=filename)
+    try:
+        gzfobj = gzip.GzipFile(filename=filename, mode='wb', fileobj=fobj)
+        pickle.dump(object, gzfobj, protocol=bin)
+    finally:
+        gzfobj.close()
+        fobj.close()
+    print 'Done. [%s]' % fs.get(filename).length
 
-def loadobj(filename):
-    '''Loads a compressed object from disk
+
+def loadobj(filename, mode='file'):
+    '''Loads a compressed object from disk file (or file-like handler) or
+        MongoDB gridfs file (mode='gridfs')
+           obj = loadobj('data.pyobj')
+
+           obj = loadobj(('data.pyobj', mongo_db), mode='gridfs')
     '''
-    import gzip, pickle
-    file = gzip.GzipFile(filename, 'rb')
-    buffer = ""
-    while 1:
-        data = file.read()
-        if data == "":
-            break
-        buffer += data
-    object = pickle.loads(buffer)
-    file.close()
+    import gzip
+    import cPickle as pickle
+
+    if mode == 'gridfs':
+        import gridfs
+        filename, db = filename   #input is a tuple of (filename, mongo_db)
+        fs = gridfs.GridFS(db)
+        fobj = fs.get(filename)
+    else:
+        if type(filename) in types.StringTypes:
+            fobj = file(filename, 'rb')
+        else:
+            fobj = filename   #input is a file-like handler
+    gzfobj = gzip.GzipFile(fileobj=fobj)
+    try:
+        buffer = ""
+        while 1:
+            data = gzfobj.read()
+            if data == "":
+                break
+            buffer += data
+        object = pickle.loads(buffer)
+    finally:
+        gzfobj.close()
+        fobj.close()
     return object
+
 
