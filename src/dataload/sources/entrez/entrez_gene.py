@@ -1,5 +1,6 @@
 from mongokit import OR
 from entrez_base import GeneInfoParser
+from entrez_base import get_geneid_d as _get_geneid_d
 
 structure = {'taxid': int,
              'entrezgene': int,
@@ -20,7 +21,7 @@ for field in string_fields:
     structure[field] = unicode
 
 __metadata__ = {
-    '__collection__' : 'entrez_geneinfo',
+    '__collection__' : 'entrez_gene',
     'structure': structure,
     'required_fields' : ['taxid', 'entrezgene', 'symbol'],
     'ENTREZ_GENEDOC_ROOT' : True
@@ -114,3 +115,5 @@ def get_mapping(self):
     return mapping
 
 
+def get_geneid_d(self=None):
+    return _get_geneid_d()
