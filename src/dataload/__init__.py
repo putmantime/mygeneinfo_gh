@@ -7,13 +7,12 @@ import datetime
 import importlib
 from mongokit import Document, CustomType
 from utils.mongo import get_src_conn
-from utils.common import timesofar
+from utils.common import timesofar, dump2gridfs
 from config import DATA_SRC_DATABASE, DATA_SRC_MASTER_COLLECTION
 
 
 __sources__ = [
-              'entrez.entrez_geneinfo',
-#              'ensembl_all',
+              'entrez.entrez_gene',
               'entrez.entrez_homologene',
               'entrez.entrez_genesummary',
               'entrez.entrez_accession',
@@ -24,26 +23,10 @@ __sources__ = [
               'entrez.entrez_retired',
 
               'ensembl.ensembl_gene',
+              'ensembl.ensembl_acc',
               'ensembl.ensembl_genomic_pos',
-              'ensembl.ensembl_pdb',
-              'ensembl.ensembl_ipi',
               'ensembl.ensembl_prosite',
               'ensembl.ensembl_interpro',
-
-              'pharmgkb',
-              'reporter',
-               ]
-
-__sources__ = [
-              'entrez.entrez_geneinfo',
-              'entrez.entrez_homologene',
-              'entrez.entrez_genesummary',
-              'entrez.entrez_accession',
-              'entrez.entrez_refseq',
-              'entrez.entrez_unigene',
-              'entrez.entrez_go',
-              'entrez.entrez_ec',
-              'entrez.entrez_retired',
 
               'uniprot',
               'uniprot.uniprot_pdb',
@@ -53,7 +36,6 @@ __sources__ = [
               'pharmgkb',
               'reporter',
                ]
-
 
 conn = get_src_conn()
 
@@ -82,7 +64,7 @@ class GeneDocSource(Document):
     use_schemaless = True
     DEFAULT_FIELDTYPE = unicode
 
-    def doc_iterator(self, genedoc_d, batch=True, step=10000):
+    def doc_iterator(self, genedoc_d, batch=True, step=10000, validate=True):
         if batch:
             doc_li = []
             i = 0
@@ -91,7 +73,8 @@ class GeneDocSource(Document):
             _doc = copy.copy(self)
             _doc.clear()
             _doc.update(doc)
-            _doc.validate()
+            if validate:
+                _doc.validate()
             if batch:
                 doc_li.append(_doc)
                 i += 1
@@ -117,19 +100,38 @@ class GeneDocSource(Document):
                 if not test:
                     self.collection.insert(doc_li, manipulate=False, check_keys=False)
             print 'Done[%s]' % timesofar(t0)
+            if getattr(self, 'ENTREZ_GENEDOC_ROOT', False):
+                print 'Uploading "geneid_d" to GridFS...',
+                t0 = time.time()
+                geneid_d = self.get_geneid_d()
+                dump2gridfs(geneid_d, self.__collection__+'__geneid_d.pyobj', self.db)
+                print 'Done[%s]' % timesofar(t0)
+            if getattr(self, 'ENSEMBL_GENEDOC_ROOT', False):
+                print 'Uploading "mapping2entrezgene" to GridFS...',
+                t0 = time.time()
+                x2entrezgene_list = self.get_mapping_to_entrez()
+                dump2gridfs(x2entrezgene_list, self.__collection__+'__2entrezgene_list.pyobj', self.db)
+                print 'Done[%s]' % timesofar(t0)
+
         if update_master:
             #update src_master collection
             if not test:
                 _doc = {"_id": unicode(self.__collection__),
                         "name": unicode(self.__collection__),
                         "timestamp": datetime.datetime.now()}
-                for attr in ['ENTREZ_GENEDOC_ROOT', 'ENSEMBL_GENEDOC_ROOT']:
+                for attr in ['ENTREZ_GENEDOC_ROOT', 'ENSEMBL_GENEDOC_ROOT', 'id_type']:
                     if hasattr(self, attr):
                         _doc[attr] = getattr(self, attr)
                 if hasattr(self, 'get_mapping'):
                     _doc['mapping'] = getattr(self, 'get_mapping')()
 
                 conn.GeneDocSourceMaster(_doc).save()
+
+    def validate_all(self, genedoc_d=None):
+        """validate all genedoc_d."""
+        genedoc_d = genedoc_d or self.load_genedoc()
+        for doc in self.doc_iterator(genedoc_d, batch=False, validate=True):
+            pass
 
 
 def register_sources():
@@ -139,10 +141,17 @@ def register_sources():
         name = src + '_doc'
         metadata['load_genedoc'] = src_m.load_genedoc
         metadata['get_mapping'] = src_m.get_mapping
+        if metadata.get('ENTREZ_GENEDOC_ROOT', False):
+            metadata['get_geneid_d'] = src_m.get_geneid_d
+        if metadata.get('ENSEMBL_GENEDOC_ROOT', False):
+            metadata['get_mapping_to_entrez'] = src_m.get_mapping_to_entrez
         src_cls = types.ClassType(name, (GeneDocSource,), metadata)
         conn.register(src_cls)
 
 #register_sources()
+def get_src(src):
+    _src = conn[src+'_doc']()
+    return _src
 
 def load_src(src, **kwargs):
     print "Loading %s..." % src
@@ -173,6 +182,7 @@ def get_mapping():
                           "compression_threshold": "1kb"}
 
     return mapping
+
 
 def make_db(source_li):
     pass
