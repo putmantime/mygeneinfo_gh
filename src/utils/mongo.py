@@ -80,6 +80,10 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False):
                 print 'Done.[%s]' % timesofar(t1)
                 t1 = time.time()
                 print "Processing %d-%d documents..." % (cnt+1, cnt+step) ,
+        if inbatch and doc_li:
+            #Important: need to yield the last batch here
+            yield doc_li
+
         print 'Done.[%s]' % timesofar(t1)
         print "="*20
         print 'Finished.[total time: %s]' % timesofar(t0)
