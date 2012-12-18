@@ -277,6 +277,21 @@ class ESQueryBuilder():
         _query = json.loads(_query % {'q': q})
         return _query
 
+
+    def raw_string_query(self, q):
+        _query = {
+            "query_string": {
+                "query": "%(q)s",
+#                "analyzer": "string_lowercase",
+                "default_operator": "AND",
+                "auto_generate_phrase_queries": True
+            }
+        }
+        _query = json.dumps(_query)
+        _query = json.loads(_query % {'q': q})
+        return _query
+
+
     def add_species_filter(self, _query):
         _query = {
             'filtered': {
@@ -324,9 +339,12 @@ class ESQueryBuilder():
         if mode == 1:
             _query = self.dis_max_query(q)
             print 'dis_max'
-        else:
+        elif mode == 2:
             _query = self.string_query(q)
             print 'string'
+        else:
+            _query = self.raw_string_query(q)
+            print 'raw_string'
 
         _query = self.add_species_filter(_query)
         _query = self.add_species_custom_filters_score(_query)
