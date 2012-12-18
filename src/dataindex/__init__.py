@@ -6,9 +6,19 @@
 #http://www.elasticsearch.org/guide/reference/query-dsl/boosting-query.html
 
 import json
+#from utils.common import is_int
 from pyelasticsearch import ElasticSearch
 
 es = ElasticSearch('http://su02:9200/')
+
+def is_int(s):
+    """return True or False if input string is integer or not."""
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
 
 class ESQuery:
     def __init__(self):
@@ -164,7 +174,11 @@ class ESQueryBuilder():
                     {
                     "custom_boost_factor": {
                         "query" : {
-                            "match" : { "symbol" : "%(q)s" },
+                            "match" : { "symbol" : {
+                                            "query": "%(q)s",
+                                            "analyzer": "whitespace_lowercase"
+                                            }
+                                      },
                         },
                         "boost_factor": 5
                     }
@@ -172,7 +186,8 @@ class ESQueryBuilder():
                     {
                     "custom_boost_factor": {
                         "query" : {
-                            "match_phrase" : { "name" : "%(q)s" },
+                            #This makes phrase match of "cyclin-dependent kinase 2" appears first
+                            "match_phrase" : { "name" : "%(q)s"},
                         },
                         "boost_factor": 4
                     }
@@ -180,7 +195,11 @@ class ESQueryBuilder():
                     {
                     "custom_boost_factor": {
                         "query" : {
-                            "match" : { "name" : "%(q)s" },
+                            "match" : { "name" : {
+                                            "query": "%(q)s",
+                                            "analyzer": "whitespace_lowercase"
+                                            }
+                                      },
                         },
                         "boost_factor" : 3
                     }
@@ -188,28 +207,59 @@ class ESQueryBuilder():
                     {
                     "custom_boost_factor": {
                         "query" : {
-                            "match" : { "_all" : {
+                            "match" : { "unigene" : {
                                                     "query": "%(q)s" ,
-                                                    "analyzer": "keyword"
+                                                    "analyzer": "string_lowercase"
                                                  }
                                              }
                         },
-                        "boost_factor": 2
+                        "boost_factor": 1.1
                     }
                     },
                     {
                     "custom_boost_factor": {
                         "query" : {
-                            "match" : { "_all" : "%(q)s" },
+                            "match" : { "go" : {
+                                                    "query": "%(q)s" ,
+                                                    "analyzer": "string_lowercase"
+                                                 }
+                                             }
+                        },
+                        "boost_factor": 1.1
+                    }
+                    },
+                    {
+                    "custom_boost_factor": {
+                        "query" : {
+                            "match" : { "_all" : {
+                                            "query": "%(q)s",
+                                            "analyzer": "whitespace_lowercase"
+                                }
+                            },
                         },
                         "boost_factor": 1
                     }
                     },
+
                 ]
             }
             }
         _query = json.dumps(_query)
         _query = json.loads(_query % {'q': q})
+
+        if is_int(q):
+            _query['dis_max']['queries'] = []
+            _query['dis_max']['queries'].insert(0,
+                    {
+                    "custom_boost_factor": {
+                        "query" : {
+                            "term" : { "entrezgene" : int(q)},
+                        },
+                        "boost_factor": 8
+                    }
+                    }
+                    )
+
 
         return _query
 
@@ -217,7 +267,7 @@ class ESQueryBuilder():
         _query = {
             "query_string": {
                 "query": "%(q)s",
-                "analyzer": "keyword",
+                "analyzer": "string_lowercase",
                 "default_operator": "AND",
                 "auto_generate_phrase_queries": True
             }
@@ -245,6 +295,12 @@ class ESQueryBuilder():
             "custom_filters_score": {
             "query": _query,
             "filters" : [
+                #downgrade "pseudogene" matches
+                {
+                    "filter" : { "term" : { "name" : "pseudogene" } },
+                    "boost" : "0.5"
+                },
+
                 {
                     "filter" : { "term" : { "taxid" : 9606 } },
                     "boost" : "1.5"
