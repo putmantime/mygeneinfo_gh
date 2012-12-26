@@ -37,7 +37,6 @@ class ESQuery:
 
     def query(self, q, fields=['symbol','name','taxid'], **kwargs):
         mode = int(kwargs.pop('mode', 1))
-        #_q = make_query(q, fields=fields, **kwargs )
         qbdr = ESQueryBuilder(fields=fields, **kwargs)
         _q = qbdr.build(q, mode)
         return self._search(_q)
@@ -48,112 +47,18 @@ class ESQuery:
         self._doc_type = 'gene'
         return res
 
+    def query_interval(self, taxid, chr,  gstart, gend, **kwargs):
+        kwargs.setdefault('fields', ['symbol','name','taxid'])
+        qbdr = ESQueryBuilder(**kwargs)
+        _q = qbdr.build_genomic_pos_query(taxid, chr,  gstart, gend)
+        return self._search(_q)
+
+
 
 def test2(q):
     esq = ESQuery()
     return esq.query(q)
 
-
-def make_query(q, fields, **kwargs):
-    '''http://www.elasticsearch.org/guide/reference/query-dsl/dis-max-query.html'''
-    _query = {
-    "dis_max" : {
-        "tie_breaker" : 0,
-        "boost" : 1,
-        "queries" : [
-            {
-            "custom_boost_factor": {
-                "query" : {
-                    "match" : { "symbol" : "%(q)s" },
-                },
-                "boost_factor": 5
-            }
-            },
-            {
-            "custom_boost_factor": {
-                "query" : {
-                    "match_phrase" : { "name" : "%(q)s" },
-                },
-                "boost_factor": 4
-            }
-            },
-            {
-            "custom_boost_factor": {
-                "query" : {
-                    "match" : { "name" : "%(q)s" },
-                },
-                "boost_factor" : 3
-            }
-            },
-            {
-            "custom_boost_factor": {
-                "query" : {
-                    "match" : { "_all" : {
-                                                    "query": "%(q)s" ,
-                                                    "analyzer": "keyword"
-                                                 }
-                                     }
-                },
-                "boost_factor": 2
-            }
-            },
-            {
-            "custom_boost_factor": {
-                "query" : {
-                    "match" : { "_all" : "%(q)s" },
-                },
-                "boost_factor": 1
-            }
-            },
-
-        ]
-    }
-    }
-
-    #adding species filter
-    _query = {'filtered': {
-                'query': _query,
-                'filter' : {
-                    "terms" : {
-                        "taxid" : [ 9606, 10090, 10116, 7227, 6239]
-                    }
-                }
-              }
-              }
-
-    _query = {
-        "custom_filters_score": {
-        "query": _query,
-        "filters" : [
-            {
-                "filter" : { "term" : { "taxid" : 9606 } },
-                "boost" : "1.5"
-            },
-            {
-                "filter" : { "term" : { "taxid" : 10090 } },
-                "boost" : "1.3"
-            },
-            {
-                "filter" : { "term" : { "taxid" : 10116 } },
-                "boost" : "1.1"
-            },
-
-        ],
-        "score_mode" : "first"
-        }
-    }
-
-    #_q = {'query': _query, "fields": ['symbol', 'name', 'taxid'], "explain": True}
-    _q = {'query': _query}
-    if fields:
-        _q.update({'fields': fields})
-    if kwargs:
-        _q.update(kwargs)
-
-    _q = json.dumps(_q, indent=2)
-    _q = json.loads(_q % {'q': q})
-
-    return _q
 
 class ESQueryBuilder():
     def __init__(self, **query_options):
@@ -277,7 +182,6 @@ class ESQueryBuilder():
         _query = json.loads(_query % {'q': q})
         return _query
 
-
     def raw_string_query(self, q):
         _query = {
             "query_string": {
@@ -290,7 +194,6 @@ class ESQueryBuilder():
         _query = json.dumps(_query)
         _query = json.loads(_query % {'q': q})
         return _query
-
 
     def add_species_filter(self, _query):
         _query = {
@@ -348,6 +251,40 @@ class ESQueryBuilder():
 
         _query = self.add_species_filter(_query)
         _query = self.add_species_custom_filters_score(_query)
+        _q = {'query': _query}
+        if self.options:
+            _q.update(self.options)
+        return _q
+
+    def build_genomic_pos_query(self, taxid, chr, gstart, gend):
+        _query = {
+                   "nested" : {
+                       "path" : "genomic_pos",
+                       "query" : {
+                            "bool" : {
+                                "must" : [
+                                    {
+                                        "term" : {"genomic_pos.chr" : chr}
+                                    },
+                                    {
+                                        "range" : {"genomic_pos.start" : {"gte" : gstart}}
+                                    },
+                                    {
+                                        "range" : {"genomic_pos.end" : {"lte" : gend}}
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+        _query = {
+            'filtered': {
+                'query': _query,
+                'filter' : {
+                    "term" : {"taxid" : taxid}
+                }
+            }
+        }
         _q = {'query': _query}
         if self.options:
             _q.update(self.options)
