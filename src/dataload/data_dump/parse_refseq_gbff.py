@@ -25,7 +25,6 @@ from utils.dataload import anyfile
 from config import DATA_ARCHIVE_ROOT
 
 timestamp = time.strftime('%Y%m%d')
-#timestamp = '20110809'
 DATA_FOLDER=os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez', timestamp, 'refseq')
 
 
