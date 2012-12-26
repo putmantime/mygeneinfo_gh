@@ -2,13 +2,15 @@ import os.path
 import types
 import copy
 from config import DATA_ARCHIVE_ROOT
+from dataload import get_data_folder
 from utils.common import SubStr
 from utils.dataload import (load_start, load_done,
                             tab2dict, tab2list, value_convert, normalized_value,
                             list2dict, dict_nodup
                             )
 
-DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/ensembl/69')
+#DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/ensembl/69')
+DATA_FOLDER = get_data_folder('ensembl')
 
 
 #fn to skip lines with LRG records.'''

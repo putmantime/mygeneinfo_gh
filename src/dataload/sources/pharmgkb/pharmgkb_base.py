@@ -1,9 +1,11 @@
 import os.path
 from utils.dataload import (load_start, load_done, tab2dict, value_convert)
-from config import DATA_ARCHIVE_ROOT
+from dataload import get_data_folder
+#from config import DATA_ARCHIVE_ROOT
 
-timestamp = '20121005'
-DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/pharmgkb', timestamp)
+#timestamp = '20121005'
+#DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/pharmgkb', timestamp)
+DATA_FOLDER = get_data_folder('pharmgkb')
 
 def load_pharmgkb():
 

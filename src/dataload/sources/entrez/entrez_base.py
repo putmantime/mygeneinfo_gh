@@ -1,12 +1,14 @@
 import os.path
 from config import species_li, taxid_d, DATA_ARCHIVE_ROOT
 from utils.common import file_newer, loadobj, dump
+from dataload import get_data_folder
 from utils.dataload import (load_start, load_done,
                             tab2dict, tab2list, value_convert, normalized_value,
                             dict_convert, dict_to_list,
                             )
 
-DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez/current')
+#DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez/current')
+DATA_FOLDER = get_data_folder('entrez')
 
 class EntrezParserBase(object):
     def __init__(self):
