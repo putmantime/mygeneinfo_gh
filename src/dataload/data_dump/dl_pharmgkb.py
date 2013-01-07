@@ -1,4 +1,4 @@
-# Copyright [2010-2011] [Chunlei Wu]
+# Copyright [2010-2013] [Chunlei Wu]
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,26 +31,27 @@ GENES_URL = 'http://www.pharmgkb.org/commonFileDownload.action?filename=genes.zi
 
 def download(no_confirm=False):
     orig_path = os.getcwd()
-    os.chdir(DATA_FOLDER)
-    filename = 'genes.zip'
-    url = GENES_URL
-    if os.path.exists(filename):
-        if no_confirm or ask('Remove existing file "%s"?' % filename) == 'Y':
-            os.remove(filename)
+    try:
+        os.chdir(DATA_FOLDER)
+        filename = 'genes.zip'
+        url = GENES_URL
+        if os.path.exists(filename):
+            if no_confirm or ask('Remove existing file "%s"?' % filename) == 'Y':
+                os.remove(filename)
+            else:
+                print "Skipped!"
+                return
+        print 'Downloading "%s"...' % filename
+        cmdline = 'wget %s -O %s' % (url, filename)
+        #cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
+        return_code = os.system(cmdline)
+        if return_code == 0:
+            print "Success."
         else:
-            print "Skipped!"
-            return
-    print 'Downloading "%s"...' % filename
-    cmdline = 'wget %s -O %s' % (url, filename)
-    #cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
-    return_code = os.system(cmdline)
-    if return_code == 0:
-        print "Success."
-    else:
-        print "Failed with return code (%s)." % return_code
-    print "="*50
-
-    os.chdir(orig_path)
+            print "Failed with return code (%s)." % return_code
+        print "="*50
+    finally:
+        os.chdir(orig_path)
 
 def check_header():
     h = httplib2.Http()
