@@ -1,4 +1,4 @@
-# Copyright [2010-2011] [Chunlei Wu]
+# Copyright [2010-2013] [Chunlei Wu]
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,8 @@ import glob
 import time
 from Bio import SeqIO
 
-sys.path.append('../../')
+src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
+sys.path.append(src_path)
 from utils.common import SubStr
 from utils.dataload import anyfile
 from config import DATA_ARCHIVE_ROOT
@@ -157,7 +158,7 @@ def main(data_folder):
         for infile in gbff_files:
             filename = os.path.split(infile)[1]
             species = filename.split('.')[0]
-            print 'Parsing "%s" (%s)...' % (filename, species)
+            print 'Parsing "%s" (%s)...' % (filename, species),
             gp = GBFFParser(infile)
             out_li = gp.parse()
             print 'Done! [%s]' % len(out_li)
