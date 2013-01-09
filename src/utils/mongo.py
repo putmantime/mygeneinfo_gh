@@ -2,6 +2,7 @@ import time
 from mongokit import Connection
 from config import (DATA_SRC_SERVER, DATA_SRC_PORT, DATA_SRC_DATABASE,
                     DATA_SRC_MASTER_COLLECTION,DATA_SRC_DUMP_COLLECTION,
+                    DATA_SRC_BUILD_COLLECTION,
                     DATA_TARGET_SERVER, DATA_TARGET_PORT, DATA_TARGET_DATABASE,
                     DATA_TARGET_MASTER_COLLECTION)
 from utils.common import timesofar
@@ -24,6 +25,10 @@ def get_src_master(conn=None):
 def get_src_dump(conn=None):
     conn = conn or get_src_conn()
     return conn[DATA_SRC_DATABASE][DATA_SRC_DUMP_COLLECTION]
+
+def get_src_build(conn=None):
+    conn = conn or get_src_conn()
+    return conn[DATA_SRC_DATABASE][DATA_SRC_BUILD_COLLECTION]
 
 def get_target_conn():
     return get_conn(DATA_TARGET_SERVER, DATA_TARGET_PORT)

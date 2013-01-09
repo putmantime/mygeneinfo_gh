@@ -1,14 +1,45 @@
 from utils.mongo import (get_src_db, get_target_db, get_src_master,
-                         doc_feeder)
+                         get_src_build, doc_feeder)
 from utils.common import loadobj
 from utils.dataload import list2dict, alwayslist
 from utils.es import ESIndexer
 
+'''
+#Build_Config example
 
 Build_Config = {
+    "name":     "test",          #target_collection will be called "genedoc_test"
     "sources" : ['entrez_gene', 'reporter'],
     "gene_root": ['entrez_gene', 'ensembl_gene']     #either entrez_gene or ensembl_gene or both
 }
+
+#for genedoc at mygene.info
+Build_Config = {
+    "name":     "mygene",          #target_collection will be called "genedoc_mygene"
+    "sources":  [u'ensembl_acc',
+                 u'ensembl_gene',
+                 u'ensembl_genomic_pos',
+                 u'ensembl_interpro',
+                 u'ensembl_prosite',
+                 u'entrez_accession',
+                 u'entrez_ec',
+                 u'entrez_gene',
+                 u'entrez_genesummary',
+                 u'entrez_go',
+                 u'entrez_homologene',
+                 u'entrez_refseq',
+                 u'entrez_retired',
+                 u'entrez_unigene',
+                 u'pharmgkb',
+                 u'reagent',
+                 u'reporter',
+                 u'uniprot',
+                 u'uniprot_ipi',
+                 u'uniprot_pdb',
+                 u'uniprot_pir'],
+    "gene_root": ['entrez_gene', 'ensembl_gene']
+}
+'''
 
 class DataBuilder():
 
@@ -27,6 +58,16 @@ class DataBuilder():
         _cfg = {"sources": self.src_master.keys(),
                 "gene_root": ['entrez_gene', 'ensembl_gene']}
         self._build_config = _cfg
+        return _cfg
+
+    def load_build_config(self, build):
+        '''Load build config from src_build collection.'''
+        src_build = get_src_build()
+        _cfg = src_build.find_one({'_id': build})
+        if _cfg:
+            self._build_config = _cfg
+        else:
+            raise ValueError('Cannot find build config named "%s"' % build)
         return _cfg
 
     def get_src_master(self):
@@ -62,6 +103,7 @@ class DataBuilder():
 
         if 'ensembl_gene' in self._build_config['gene_root']:
             self._load_ensembl2entrez_li()
+            ensembl2entrez = self._idmapping_d_cache['ensembl_gene']
 
         geneid_set = []
         if "entrez_gene" in self._build_config['gene_root']:
@@ -105,7 +147,7 @@ class DataBuilder():
 
     def merge(self, step=100000, restart_at=0):
         self.validate_src_collections()
-        target_collection = self.target.genedoc2
+        target_collection = self.target['genedoc'+'_'+self._build_config['name']]
         if restart_at == 0:
             target_collection.drop()
             geneid_set = self.make_genedoc_root(target_collection)
