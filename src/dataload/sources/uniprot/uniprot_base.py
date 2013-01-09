@@ -7,8 +7,10 @@ from utils.dataload import (load_start, load_done,
                             tabfile_feeder, list2dict, list_nondup,
                             value_convert)
 from config import DATA_ARCHIVE_ROOT
+from dataload import get_data_folder
 
-DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot')
+#DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot')
+DATA_FOLDER = get_data_folder('uniprot')
 
 #REF:
 #ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/README
