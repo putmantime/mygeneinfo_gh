@@ -12,7 +12,8 @@ from utils.common import get_timestamp, get_random_string, timesofar, dump2gridf
 from config import DATA_SRC_DATABASE, DATA_SRC_MASTER_COLLECTION
 
 
-__sources__ = [
+__sources_dict__ = {
+    'entrez': [
               'entrez.entrez_gene',
               'entrez.entrez_homologene',
               'entrez.entrez_genesummary',
@@ -21,22 +22,21 @@ __sources__ = [
               'entrez.entrez_unigene',
               'entrez.entrez_go',
               'entrez.entrez_ec',
-              'entrez.entrez_retired',
-
+              'entrez.entrez_retired'],
+    'ensembl': [
               'ensembl.ensembl_gene',
               'ensembl.ensembl_acc',
               'ensembl.ensembl_genomic_pos',
               'ensembl.ensembl_prosite',
-              'ensembl.ensembl_interpro',
-
+              'ensembl.ensembl_interpro'],
+    'uniprot': [
               'uniprot',
               'uniprot.uniprot_pdb',
               'uniprot.uniprot_ipi',
-              'uniprot.uniprot_pir',
-
-              'pharmgkb',
-              'reporter',
-               ]
+              'uniprot.uniprot_pir'],
+    'pharmgkb': ['pharmgkb'],
+    'reporter': ['reporter'],
+    }
 
 #__sources__ = []
 
@@ -161,9 +161,11 @@ class GeneDocSource(Document):
         '''after a successful loading, rename temp_collection to regular collection name,
            and renaming existing collection to a temp name for archiving purpose.
         '''
-        if self.temp_collection and self.temp_collection.count()>0:
-            new_name = '_'.join([self.__collection__, 'archive', get_timestamp(), get_random_string()])
-            self.collection.rename(new_name, dropTarget=True)
+        if self.temp_collection and self.temp_collection.count() > 0:
+            if self.collection.count() > 0:
+                #renaming existing collections
+                new_name = '_'.join([self.__collection__, 'archive', get_timestamp(), get_random_string()])
+                self.collection.rename(new_name, dropTarget=True)
             self.temp_collection.rename(self.__collection__)
         else:
             print "Error: load data first."
