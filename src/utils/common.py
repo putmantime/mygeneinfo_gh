@@ -1,8 +1,11 @@
 import sys
+import os.path
 import time
+from datetime import datetime
 import base64
 import os
 import types
+
 
 #===============================================================================
 # Misc. Utility functions
@@ -74,7 +77,8 @@ class LogPrint:
            self.log_f.write('*'*10 + 'Log ends at ' + time.ctime() + '*'*10 +'\n')
         sys.stdout=sys.__stdout__
         self.log_f.close()
-
+    def fileno(self):
+        return self.log_f.fileno()
 
 def addsuffix(filename,suffix,noext=False):
     '''Add suffix in front of ".extension", so keeping the same extension.
@@ -232,3 +236,11 @@ def is_int(s):
         return True
     except ValueError:
         return False
+
+
+def newer(t0, t1, format='%Y%m%d'):
+    '''t0 and t1 are string of timestamps matching "format" pattern.
+       Return True if t1 is newer than t0.
+    '''
+    return datetime.strptime(t0, format) < datetime.strptime(t1, format)
+
