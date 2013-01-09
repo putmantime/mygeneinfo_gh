@@ -19,7 +19,8 @@ import os.path
 import time
 from datetime import datetime
 import httplib2
-sys.path.append('../../')
+src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
+sys.path.append(src_path)
 from utils.common import ask, safewfile, LogPrint, timesofar
 from utils.mongo import get_src_dump
 from config import DATA_ARCHIVE_ROOT
@@ -100,6 +101,9 @@ if __name__ == '__main__':
     finally:
         sys.stdout.close()
     #mark the download finished successfully
-    _updates = {'status': 'success',
-                'time': timesofar(t0)}
+    _updates = {
+                'status': 'success',
+                'time': timesofar(t0),
+                'pending_to_upload': True    # a flag to trigger data uploading
+                }
     src_dump.update({'_id': 'pharmgkb'}, {'$set': _updates})

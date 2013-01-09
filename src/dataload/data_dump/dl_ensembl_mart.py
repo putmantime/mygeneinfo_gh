@@ -1,4 +1,4 @@
-# Copyright [2010-2011] [Chunlei Wu]
+# Copyright [2010-2013] [Chunlei Wu]
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,8 @@ Usage:
 import sys, os
 import time
 from ftplib import FTP
-sys.path.append('../../')
+src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
+sys.path.append(src_path)
 from utils.common import ask, safewfile, LogPrint, timesofar
 from utils.mongo import get_src_dump
 from utils.dataload import tab2list
@@ -327,8 +328,11 @@ def main_cron():
         sys.stdout.close()
 
     #mark the download finished successfully
-    _updates = {'status': 'success',
-                'time': timesofar(t0)}
+    _updates = {
+                'status': 'success',
+                'time': timesofar(t0),
+                'pending_to_upload': True    # a flag to trigger data uploading
+                }
     src_dump.update({'_id': 'ensembl'}, {'$set': _updates})
 
 

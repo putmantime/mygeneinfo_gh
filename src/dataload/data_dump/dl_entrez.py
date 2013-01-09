@@ -1,4 +1,4 @@
-# Copyright [2010-2011] [Chunlei Wu]
+# Copyright [2010-2013] [Chunlei Wu]
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,8 @@ import sys
 import os
 import os.path
 import time
-sys.path.append('../../')
+src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
+sys.path.append(src_path)
 from utils.common import ask, safewfile, LogPrint, timesofar
 from utils.mongo import get_src_dump
 from config import DATA_ARCHIVE_ROOT
@@ -141,10 +142,13 @@ def main():
         sys.stdout.close()
 
     #mark the download finished successfully
-    _updates = {'status': 'success',
+    _updates = {
+                'status': 'success',
                 'time': {'download': t_download,
                          'parsing': t_parsing,
-                         'total': t_total}}
+                         'total': t_total},
+                'pending_to_upload': True    # a flag to trigger data uploading
+                }
 
     src_dump.update({'_id': 'entrez'}, {'$set': _updates})
 
