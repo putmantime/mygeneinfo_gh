@@ -58,13 +58,16 @@ def doc_feeder0(collection, step=1000, s=None, e=None, inbatch=False):
                 yield doc
         print 'Done.[%s]' % timesofar(t0)
 
-def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False):
-    '''A iterator for returning docs in a collection, with batch query.'''
-
-    n = collection.count()
+def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None):
+    '''A iterator for returning docs in a collection, with batch query.
+       additional filter query can be passed via "query", e.g.,
+       doc_feeder(collection, query={'taxid': {'$in': [9606, 10090, 10116]}})
+    '''
+    cur = collection.find(query, timeout=True)
+    n = cur.count()
     s = s or 0
     e = e or n
-    print 'Found %d documents in database "%s".' % (n, collection.name)
+    print 'Retrieving %d documents from database "%s".' % (n, collection.name)
     t0=time.time()
     if inbatch:
         doc_li = []
@@ -72,7 +75,6 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False):
     t1 = time.time()
     print "Processing %d-%d documents..." % (cnt+1, cnt+step) ,
     try:
-        cur = collection.find(timeout=True)
         if s: cur.skip(s)
         if e: cur.limit(e)
         cur.batch_size(step)
