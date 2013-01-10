@@ -4,6 +4,10 @@ from utils.common import loadobj
 from utils.dataload import list2dict, alwayslist
 from utils.es import ESIndexer
 
+from multiprocessing import Process, Queue, current_process, freeze_support
+NUMBER_OF_PROCESSES = 8
+
+
 '''
 #Build_Config example
 
@@ -47,6 +51,7 @@ class DataBuilder():
         self.src = get_src_db()
         self.target = get_target_db()
         self.step = 10000
+        self.use_parallel = False
 
         self._build_config = build_config
         self._entrez_geneid_d = None
@@ -105,9 +110,14 @@ class DataBuilder():
             self._load_ensembl2entrez_li()
             ensembl2entrez = self._idmapping_d_cache['ensembl_gene']
 
+        if "species" in self._build_config:
+            _query = {'taxid': {'$in': self._build_config['species']}}
+        else:
+            _query = None
+
         geneid_set = []
         if "entrez_gene" in self._build_config['gene_root']:
-            for doc_li in doc_feeder(self.src['entrez_gene'], inbatch=True,  step=self.step):
+            for doc_li in doc_feeder(self.src['entrez_gene'], inbatch=True,  step=self.step, query=_query):
                 target_collection.insert(doc_li, manipulate=False, check_keys=False)
                 geneid_set.extend([doc['_id'] for doc in doc_li])
             cnt_total_entrez_genes = len(geneid_set)
@@ -116,7 +126,7 @@ class DataBuilder():
         if "ensembl_gene" in self._build_config['gene_root']:
             cnt_ensembl_only_genes = 0
             cnt_total_ensembl_genes = 0
-            for doc_li in doc_feeder(self.src['ensembl_gene'], inbatch=True, step=self.step):
+            for doc_li in doc_feeder(self.src['ensembl_gene'], inbatch=True, step=self.step, query=_query):
                 _doc_li = []
                 for _doc in doc_li:
                     cnt_total_ensembl_genes += 1
@@ -173,23 +183,66 @@ class DataBuilder():
                 idmapping_d = None
 
             if restart_at <= src_cnt:
-                for doc in doc_feeder(self.src[collection], step=step):
-                    _id = doc['_id']
-                    if flag_need_id_conversion:
-                        _id = idmapping_d.get(_id, None) or _id
-                    for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
-                        __id = str(__id)
-                        if __id in geneid_set:
-                            doc.pop('_id', None)
-                            target_collection.update({'_id': __id}, {'$set': doc},
-                                                      manipulate=False,
-                                                      upsert=False) #,safe=True)
+                if self.use_parallel:
+                    self._merge_parallel(target_collection, collection, geneid_set,
+                                           step=step, idmapping_d=idmapping_d)
+                else:
+                    self._merge_sequential(target_collection, collection, geneid_set,
+                                           step=step, idmapping_d=idmapping_d)
 
-                            # _doc = target_collection.get_from_id(__id)
-                            # if _doc:
-                            #     _doc.update(doc)
-                            #     doc = _doc
-                            # target_collection.save(doc, manipulate=False, check_keys=False, w=0)
+    def _merge_sequential(self, target_collection, collection, geneid_set, step=100000, idmapping_d=None):
+        for doc in doc_feeder(self.src[collection], step=step):
+            _id = doc['_id']
+            if idmapping_d:
+                _id = idmapping_d.get(_id, None) or _id
+            for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+                __id = str(__id)
+                if __id in geneid_set:
+                    doc.pop('_id', None)
+                    target_collection.update({'_id': __id}, {'$set': doc},
+                                              manipulate=False,
+                                              upsert=False) #,safe=True)
+
+                    # _doc = target_collection.get_from_id(__id)
+                    # if _doc:
+                    #     _doc.update(doc)
+                    #     doc = _doc
+                    # target_collection.save(doc, manipulate=False, check_keys=False, w=0)
+
+    def _merge_parallel(self, target_collection, collection, geneid_set, step=100000, idmapping_d=None):
+
+        input_queue = Queue()
+        input_queue.conn_pool = []
+
+        def worker(q, target_collection):
+            while True:
+                doc = q.get()
+                if doc == 'STOP':
+                    break
+                __id = doc.pop('_id')
+                target_collection.update({'_id': __id}, {'$set': doc},
+                                          manipulate=False,
+                                          upsert=False) #,safe=True)
+
+        # Start worker processes
+        for i in range(NUMBER_OF_PROCESSES):
+            Process(target=worker, args=(input_queue, target_collection)).start()
+
+
+        for doc in doc_feeder(self.src[collection], step=step):
+            _id = doc['_id']
+            if idmapping_d:
+                _id = idmapping_d.get(_id, None) or _id
+            for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+                __id = str(__id)
+                if __id in geneid_set:
+                    # doc.pop('_id', None)
+                    doc['_id'] = __id
+                    input_queue.put(doc)
+
+        # Tell child processes to stop
+        for i in range(NUMBER_OF_PROCESSES):
+            input_queue.put('STOP')
 
     def merge_0(self):
         target_collection = self.target.genedoc
@@ -229,7 +282,27 @@ class DataBuilder():
         return mapping
 
     def build_index(self):
-        es_idxer = ESIndexer(self.target.genedoc2, self.get_mapping())
+        target_collection = self.target['genedoc'+'_'+self._build_config['name']]
+        es_idxer = ESIndexer(target_collection, self.get_mapping())
         es_idxer.step = 1000
         es_idxer.create_index()
         es_idxer.build_index(verbose=False)
+
+
+if __name__ == '__main__':
+    import time
+    from utils.common import timesofar
+
+    t0 = time.time()
+    Build_Config = {
+        "name":     "test_parallel",          #target_collection will be called "genedoc_test"
+        "sources" : ['entrez_gene', 'ensembl_gene', 'ensembl_acc', 'reporter'], # 'uniprot'],
+        "gene_root": ['entrez_gene', 'ensembl_gene'],     #either entrez_gene or ensembl_gene or both
+        "species": [9606, ]
+    }
+    freeze_support()
+    bdr = DataBuilder(build_config=Build_Config)
+    #bdr.use_parallel = True
+    bdr.merge()
+    print "Finished.", timesofar(t0)
+
