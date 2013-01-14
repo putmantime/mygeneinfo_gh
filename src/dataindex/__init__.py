@@ -6,10 +6,12 @@
 #http://www.elasticsearch.org/guide/reference/query-dsl/boosting-query.html
 
 import json
-#from utils.common import is_int
-from pyelasticsearch import ElasticSearch
+from utils.common import is_int
+from utils.es import get_es
+#from pyelasticsearch import ElasticSearch
 
-es = ElasticSearch('http://su02:9200/')
+#es0 = ElasticSearch('http://su02:9200/')
+es = get_es()
 
 def is_int(s):
     """return True or False if input string is integer or not."""
@@ -19,21 +21,28 @@ def is_int(s):
     except ValueError:
         return False
 
+dummy_model = lambda es, res: res
 
 class ESQuery:
     def __init__(self):
+        #self.conn0 = es0
         self.conn = es
-        self._index = 'genedoc_2'
+        self.conn.model = dummy_model
+        self._index = 'genedoc_mygene'
         self._doc_type = 'gene'
         #self._doc_type = 'gene_sample'
 
     def _search(self, q):
-        return es.search(q, index=self._index, doc_type=self._doc_type)
+        #return self.conn0.search(q, index=self._index, doc_type=self._doc_type)
+        return self.conn.search_raw(q, indices=self._index, doc_types=self._doc_type)
 
     def get_gene(self, geneid, fields=None, **kwargs):
         if fields:
             kwargs['fields'] = fields
-        return self.conn.get(self._index, self._doc_type, geneid, **kwargs)
+        raw = kwargs.pop('raw', False)
+        #res = self.conn0.get(self._index, self._doc_type, geneid, **kwargs)
+        res = self.conn.get(self._index, self._doc_type, geneid, **kwargs)
+        return res if raw else res['_source']
 
     def query(self, q, fields=['symbol','name','taxid'], **kwargs):
         mode = int(kwargs.pop('mode', 1))
