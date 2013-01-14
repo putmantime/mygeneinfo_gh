@@ -10,6 +10,7 @@ DATA_TARGET_PORT = 27017
 DATA_TARGET_DATABASE = 'genedoc'
 DATA_TARGET_MASTER_COLLECTION = 'db_master'
 
+LOG_FOLDER = '<path to log folder>'
 ES_HOST = 'localhost:9500'
 ES_INDEX_NAME = 'genedoc'
 ES_INDEX_TYPE = 'gene'
