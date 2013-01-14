@@ -22,6 +22,9 @@ import tornado.web
 import tornado.escape
 from tornado.options import define, options
 
+src_path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
+if src_path not in sys.path:
+    sys.path.append(src_path)
 from dataindex import ESQuery
 
 __USE_WSGI__ = False
