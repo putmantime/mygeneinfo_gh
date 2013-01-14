@@ -1,8 +1,14 @@
+import sys
+import os.path
+import time
+from datetime import datetime
 from utils.mongo import (get_src_db, get_target_db, get_src_master,
                          get_src_build, doc_feeder)
-from utils.common import loadobj
+from utils.common import loadobj, timesofar, safewfile, LogPrint
 from utils.dataload import list2dict, alwayslist
 from utils.es import ESIndexer
+import databuild.backend
+from config import LOG_FOLDER
 
 from multiprocessing import Process, Queue, current_process, freeze_support
 NUMBER_OF_PROCESSES = 8
@@ -47,17 +53,27 @@ Build_Config = {
 
 class DataBuilder():
 
-    def __init__(self, build_config=None):
+    def __init__(self, build_config=None, backend='mongodb'):
         self.src = get_src_db()
-        self.target = get_target_db()
         self.step = 10000
         self.use_parallel = False
+        self.merge_logging = True     #save output into a logging file when merge is called.
+        self.log_folder = LOG_FOLDER
 
         self._build_config = build_config
         self._entrez_geneid_d = None
         self._idmapping_d_cache = {}
 
         self.get_src_master()
+
+        if backend == 'mongodb':
+            self.target = databuild.backend.GeneDocMongoDBBackend()
+        elif backend == 'es':
+            self.target = databuild.backend.GeneDocESBackend(ESIndexer())
+        # elif backend == 'couchdb':
+        #     self.target = databuild.backend.GeneDocCouchDBBackend()
+        else:
+            raise ValueError('Invalid backend "%s".' % backend)
 
     def make_build_config_for_all(self):
         _cfg = {"sources": self.src_master.keys(),
@@ -68,12 +84,46 @@ class DataBuilder():
     def load_build_config(self, build):
         '''Load build config from src_build collection.'''
         src_build = get_src_build()
+        self.src_build = src_build
         _cfg = src_build.find_one({'_id': build})
         if _cfg:
             self._build_config = _cfg
         else:
             raise ValueError('Cannot find build config named "%s"' % build)
         return _cfg
+
+    def log_src_build(self, dict):
+        '''put logging dictionary into the corresponding doc in src_build collection.
+           if build_config is not loaded from src_build, nothing will be logged.
+        '''
+        src_build = getattr(self, 'src_build', None)
+        if src_build:
+            src_build.update({'_id': self._build_config['_id']}, {"$set": dict})
+
+    def log_building_start(self):
+        if self.merge_logging:
+            #setup logging
+            logfile = 'databuild_{}_{}.log'.format('genedoc'+'_'+self._build_config['name'],
+                                                   time.strftime('%Y%m%d'))
+            log_f, logfile = safewfile(os.path.join(self.log_folder, logfile), prompt=False, default='O')
+            sys.stdout = LogPrint(log_f, timestamp=True)
+
+        src_build = getattr(self, 'src_build', None)
+        if src_build:
+            src_build.update({'_id': self._build_config['_id']}, {"$unset": {"build": ""}})
+            d = {'build.status': 'building',
+                 'build.started_at': datetime.now(),
+                 'build.logfile': logfile}
+            src_build.update({'_id': self._build_config['_id']}, {"$set": d})
+
+    def prepare_target(self):
+        '''call self.update_backend() after validating self._build_config.'''
+        if self.target.name == 'mongodb':
+            _db = get_target_db()
+            self.target.target_collection = _db['genedoc'+'_'+self._build_config['name']]
+        elif self.target.name == 'es':
+            self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
+            self.target.target_esidxer._mapping = self.get_mapping()
 
     def get_src_master(self):
         src_master = get_src_master(self.src.connection)
@@ -85,6 +135,7 @@ class DataBuilder():
             for src in self._build_config['sources']:
                 assert src in self.src_master, '"%s" not found in "src_master"' % src
                 assert src in collection_list, '"%s" not an existing collection in "%s"' % (src, self.src.name)
+            self.prepare_target()
         else:
             raise ValueError('"build_config" cannot be empty.')
 
@@ -102,7 +153,7 @@ class DataBuilder():
         self._idmapping_d_cache['ensembl_gene'] = ensembl2entrez
 
 
-    def make_genedoc_root(self, target_collection):
+    def make_genedoc_root(self):
         if not self._entrez_geneid_d:
             self._load_entrez_geneid_d()
 
@@ -118,7 +169,8 @@ class DataBuilder():
         geneid_set = []
         if "entrez_gene" in self._build_config['gene_root']:
             for doc_li in doc_feeder(self.src['entrez_gene'], inbatch=True,  step=self.step, query=_query):
-                target_collection.insert(doc_li, manipulate=False, check_keys=False)
+                #target_collection.insert(doc_li, manipulate=False, check_keys=False)
+                self.target.insert(doc_li)
                 geneid_set.extend([doc['_id'] for doc in doc_li])
             cnt_total_entrez_genes = len(geneid_set)
             print '# of entrez Gene IDs in total: %d' % cnt_total_entrez_genes
@@ -138,13 +190,20 @@ class DataBuilder():
                         cnt_ensembl_only_genes += 1
                         geneid_set.append(_doc['_id'])
                 if _doc_li:
-                    target_collection.insert(_doc_li, manipulate=False, check_keys=False)
+                    #target_collection.insert(_doc_li, manipulate=False, check_keys=False)
+                    self.target.insert(doc_li)
             print '# of ensembl Gene IDs in total: %d' % cnt_total_ensembl_genes
             print '# of ensembl Gene IDs match entrez Gene IDs: %d' % len(ensembl2entrez)
             print '# of ensembl Gene IDs DO NOT match entrez Gene IDs: %d' % cnt_ensembl_only_genes
 
             geneid_set = set(geneid_set)
             print '# of total Root Gene IDs: %d' % len(geneid_set)
+            self.log_src_build({'build.stats.total_entrez_genes': cnt_total_entrez_genes,
+                                'build.stats.total_ensembl_genes': cnt_total_ensembl_genes,
+                                'build.stats.total_ensembl_genes_mapped_to_entrez': len(ensembl2entrez),
+                                'build.stats.total_ensembl_only_genes': cnt_ensembl_only_genes,
+                                'build.stats.total_genes': len(geneid_set)
+                               })
             return  geneid_set
 
     def get_idmapping_d(self, src):
@@ -156,41 +215,55 @@ class DataBuilder():
             #raise ValueError('cannot load "idmapping_d" for "%s"' % src)
 
     def merge(self, step=100000, restart_at=0):
+        t0 = time.time()
         self.validate_src_collections()
-        target_collection = self.target['genedoc'+'_'+self._build_config['name']]
-        if restart_at == 0:
-            target_collection.drop()
-            geneid_set = self.make_genedoc_root(target_collection)
-        else:
-            if not self._entrez_geneid_d:
-                self._load_entrez_geneid_d()
-            geneid_set = set([x['_id'] for x in target_collection.find(fields=[], manipulate=False)])
-            print '\t', len(geneid_set)
-
-        src_collection_list = self._build_config['sources']
-        src_cnt = 0
-        for collection in src_collection_list:
-            if collection in ['entrez_gene', 'ensembl_gene']:
-                continue
-
-            src_cnt += 1
-
-            id_type = self.src_master[collection].get('id_type', None)
-            flag_need_id_conversion =  id_type is not None
-            if flag_need_id_conversion:
-                idmapping_d = self.get_idmapping_d(id_type)
+        self.log_building_start()
+        try:
+            if restart_at == 0:
+                self.target.drop()
+                self.target.prepare()
+                geneid_set = self.make_genedoc_root()
             else:
-                idmapping_d = None
+                if not self._entrez_geneid_d:
+                    self._load_entrez_geneid_d()
+                #geneid_set = set([x['_id'] for x in target_collection.find(fields=[], manipulate=False)])
+                geneid_set = set(self.target.get_id_list())
+                print '\t', len(geneid_set)
 
-            if restart_at <= src_cnt:
-                if self.use_parallel:
-                    self._merge_parallel(target_collection, collection, geneid_set,
-                                           step=step, idmapping_d=idmapping_d)
+            src_collection_list = self._build_config['sources']
+            src_cnt = 0
+            for collection in src_collection_list:
+                if collection in ['entrez_gene', 'ensembl_gene']:
+                    continue
+
+                src_cnt += 1
+
+                id_type = self.src_master[collection].get('id_type', None)
+                flag_need_id_conversion =  id_type is not None
+                if flag_need_id_conversion:
+                    idmapping_d = self.get_idmapping_d(id_type)
                 else:
-                    self._merge_sequential(target_collection, collection, geneid_set,
-                                           step=step, idmapping_d=idmapping_d)
+                    idmapping_d = None
 
-    def _merge_sequential(self, target_collection, collection, geneid_set, step=100000, idmapping_d=None):
+                if restart_at <= src_cnt:
+                    if self.use_parallel:
+                        self._merge_parallel(collection, geneid_set,
+                                             step=step, idmapping_d=idmapping_d)
+                    else:
+                        self._merge_sequential(collection, geneid_set,
+                                               step=step, idmapping_d=idmapping_d)
+            t1 = round(time.time() - t0, 0)
+            t = timesofar(t0)
+            self.log_src_build({'build.status': 'success',
+                                'build.time': t,
+                                'build.time_in_s': t1,
+                                'build.timestamp': datetime.now()})
+
+        finally:
+            if self.merge_logging:
+                sys.stdout.close()
+
+    def _merge_sequential(self, collection, geneid_set, step=100000, idmapping_d=None):
         for doc in doc_feeder(self.src[collection], step=step):
             _id = doc['_id']
             if idmapping_d:
@@ -199,34 +272,30 @@ class DataBuilder():
                 __id = str(__id)
                 if __id in geneid_set:
                     doc.pop('_id', None)
-                    target_collection.update({'_id': __id}, {'$set': doc},
-                                              manipulate=False,
-                                              upsert=False) #,safe=True)
+                    # target_collection.update({'_id': __id}, {'$set': doc},
+                    #                           manipulate=False,
+                    #                           upsert=False) #,safe=True)
+                    self.target.update(__id, doc)
 
-                    # _doc = target_collection.get_from_id(__id)
-                    # if _doc:
-                    #     _doc.update(doc)
-                    #     doc = _doc
-                    # target_collection.save(doc, manipulate=False, check_keys=False, w=0)
-
-    def _merge_parallel(self, target_collection, collection, geneid_set, step=100000, idmapping_d=None):
+    def _merge_parallel(self, collection, geneid_set, step=100000, idmapping_d=None):
 
         input_queue = Queue()
         input_queue.conn_pool = []
 
-        def worker(q, target_collection):
+        def worker(q, target):
             while True:
                 doc = q.get()
                 if doc == 'STOP':
                     break
                 __id = doc.pop('_id')
-                target_collection.update({'_id': __id}, {'$set': doc},
-                                          manipulate=False,
-                                          upsert=False) #,safe=True)
+                target.update(__id, doc)
+                # target_collection.update({'_id': __id}, {'$set': doc},
+                #                           manipulate=False,
+                #                           upsert=False) #,safe=True)
 
         # Start worker processes
         for i in range(NUMBER_OF_PROCESSES):
-            Process(target=worker, args=(input_queue, target_collection)).start()
+            Process(target=worker, args=(input_queue, self.target)).start()
 
 
         for doc in doc_feeder(self.src[collection], step=step):
@@ -236,7 +305,6 @@ class DataBuilder():
             for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
                 __id = str(__id)
                 if __id in geneid_set:
-                    # doc.pop('_id', None)
                     doc['_id'] = __id
                     input_queue.put(doc)
 
@@ -282,27 +350,35 @@ class DataBuilder():
         return mapping
 
     def build_index(self):
-        target_collection = self.target['genedoc'+'_'+self._build_config['name']]
-        es_idxer = ESIndexer(target_collection, self.get_mapping())
+        target_collection = self.target.target_collection
+        es_idxer = ESIndexer(self.get_mapping())
+        es_idxer.ES_INDEX_NAME = target_collection.name
         es_idxer.step = 1000
         es_idxer.create_index()
-        es_idxer.build_index(verbose=False)
+        es_idxer.build_index(target_collection, verbose=False)
 
 
 if __name__ == '__main__':
-    import time
-    from utils.common import timesofar
-
     t0 = time.time()
-    Build_Config = {
-        "name":     "test_parallel",          #target_collection will be called "genedoc_test"
-        "sources" : ['entrez_gene', 'ensembl_gene', 'ensembl_acc', 'reporter'], # 'uniprot'],
-        "gene_root": ['entrez_gene', 'ensembl_gene'],     #either entrez_gene or ensembl_gene or both
-        "species": [9606, ]
-    }
+    # Build_Config = {
+    #     #"name":     "test_parallel_2",
+    #     "name":     "test_mongodb",
+    #     "sources" : ['entrez_gene', 'ensembl_gene', 'ensembl_acc', 'reporter'], # 'uniprot'],
+    #     "gene_root": ['entrez_gene', 'ensembl_gene'],     #either entrez_gene or ensembl_gene or both
+    #     "species": [9606, ]
+    # }
+    # freeze_support()
+    # bdr = DataBuilder(build_config=Build_Config, backend='mongodb')
+    # #bdr.use_parallel = True
+    # bdr.merge()
+    # bdr.build_index()
+
     freeze_support()
-    bdr = DataBuilder(build_config=Build_Config)
+    bdr = DataBuilder(backend='mongodb')
+    bdr.load_build_config('mygene_allspecies')
     #bdr.use_parallel = True
-    bdr.merge()
+    #bdr.merge()
+    #bdr.build_index()
+
     print "Finished.", timesofar(t0)
 
