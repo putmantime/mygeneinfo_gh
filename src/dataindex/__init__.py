@@ -5,9 +5,12 @@
 #http://www.elasticsearch.org/guide/reference/query-dsl/custom-boost-factor-query.html
 #http://www.elasticsearch.org/guide/reference/query-dsl/boosting-query.html
 
+import types
 import json
 from utils.common import is_int
 from utils.es import get_es
+from pyes.exceptions import NotFoundException
+from pyes.utils import make_path
 #from pyelasticsearch import ElasticSearch
 
 #es0 = ElasticSearch('http://su02:9200/')
@@ -36,15 +39,70 @@ class ESQuery:
         #return self.conn0.search(q, index=self._index, doc_type=self._doc_type)
         return self.conn.search_raw(q, indices=self._index, doc_types=self._doc_type)
 
+    def _msearch(self, q):
+        path = make_path((self._index, self._doc_type, '_msearch'))
+        return self.conn._send_request('GET', path, body=q)
+
+    def _get_genedoc(self, hit):
+        doc = hit.get('_source', hit.get('fields'))
+        doc.setdefault('_id', hit['_id'])
+        return doc
+
+    def _cleaned_res(self, res, empty=[],single_hit=False):
+        '''res is the dictionary returned from a query.'''
+        hits = res['hits']
+        total = hits['total']
+        if total == 0:
+            return empty
+        elif total == 1 and single_hit:
+            return self._get_genedoc(hits['hits'][0])
+        else:
+            return [self._get_genedoc(hit) for hit in hits]
+
+    def _formated_fields(self, fields):
+        if type(fields) in types.StringTypes:
+            fields = [x.strip() for x in fields.split(',')]
+        return fields
+
     def get_gene(self, geneid, fields=None, **kwargs):
         if fields:
-            kwargs['fields'] = fields
+            kwargs['fields'] = self._formated_fields(fields)
         raw = kwargs.pop('raw', False)
         #res = self.conn0.get(self._index, self._doc_type, geneid, **kwargs)
-        res = self.conn.get(self._index, self._doc_type, geneid, **kwargs)
-        return res if raw else res['_source']
+        try:
+            res = self.conn.get(self._index, self._doc_type, geneid, **kwargs)
+        except NotFoundException:
+            return None
+        return res if raw else self._get_genedoc(res)
+
+    def mget_gene(self, geneid_list, fields=None, **kwargs):
+        if fields:
+            kwargs['fields'] = self._formated_fields(fields)
+        raw = kwargs.pop('raw', False)
+        res = self.conn.mget(geneid_list, self._index, self._doc_type, **kwargs)
+        return res if raw else [self._get_genedoc(doc) for doc in res]
+
+    def get_gene2(self, geneid, fields=None, **kwargs):
+        if fields:
+            fields = self._formated_fields(fields)
+        raw = kwargs.pop('raw', False)
+        qbdr = ESQueryBuilder(fields=fields, **kwargs)
+        _q = qbdr.build_id_query(geneid)
+        res =  self._search(_q)
+        return res if raw else self._cleaned_res(res, empty=None, single_hit=True)
+
+    def mget_gene2(self, geneid_list, fields=None, **kwargs):
+        if fields:
+            fields = self._formated_fields(fields)
+        raw = kwargs.pop('raw', False)
+        qbdr = ESQueryBuilder(fields=fields, **kwargs)
+        _q = qbdr.build_multiple_id_query(geneid_list)
+        res = self._msearch(_q)
+        return [_res if raw else self._cleaned_res(_res, empty=None, single_hit=True) for _res in res['responses']]
 
     def query(self, q, fields=['symbol','name','taxid'], **kwargs):
+        if fields:
+            fields = self._formated_fields(fields)
         mode = int(kwargs.pop('mode', 1))
         qbdr = ESQueryBuilder(fields=fields, **kwargs)
         _q = qbdr.build(q, mode)
@@ -264,6 +322,33 @@ class ESQueryBuilder():
         if self.options:
             _q.update(self.options)
         return _q
+
+    def build_id_query(self, id):
+        if is_int(id):
+            _query = {
+                "multi_match": {
+                    "query": id,
+                    "fields": ['entrezgene', 'retired']
+                }
+            }
+        else:
+            _query = {
+                "match": {
+                    "ensemblgene": "%s" % id
+                }
+            }
+        _q = {"query": _query}
+        if self.options:
+            _q.update(self.options)
+        return _q
+
+    def build_multiple_id_query(self, id_list):
+        """make a query body for msearch query."""
+        _q = []
+        for id in id_list:
+            _q.extend(['{}', json.dumps(self.build_id_query(id))])
+        _q.append('')
+        return '\n'.join(_q)
 
     def build_genomic_pos_query(self, taxid, chr, gstart, gend):
         _query = {
