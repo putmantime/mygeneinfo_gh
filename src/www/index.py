@@ -26,6 +26,7 @@ src_path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
 if src_path not in sys.path:
     sys.path.append(src_path)
 from dataindex import ESQuery
+from helper import BaseHandler
 
 __USE_WSGI__ = False
 
@@ -72,43 +73,66 @@ class MetaDataHandler(tornado.web.RequestHandler):
         self.write(metadata)
 
 
-class GeneHandler(tornado.web.RequestHandler):
-    def get(self, geneid):
-        fields = self.get_argument('fields', None)
-        kwargs = {}
-        if fields:
-            kwargs['fields'] = fields
-        esq = ESQuery()
-        gene = esq.get_gene(geneid, **kwargs)
-        _json_data = json.dumps(gene)
-        self.set_header("Content-Type", "application/json; charset=UTF-8")
-        self.write(_json_data)
+class GeneHandler(BaseHandler):
+    esq = ESQuery()
 
-class QueryHandler(tornado.web.RequestHandler):
+    def get(self, geneid=None):
+        '''/gene/<geneid>
+           geneid can be entrezgene, ensemblgene, retired entrezgene ids.
+           /gene/1017
+           /gene/1017?filter=symbol,name
+           /gene/1017?filter=symbol,name,reporter.HG-U133_Plus_2
+        '''
+        if geneid:
+            kwargs = self.get_query_params()
+            gene = self.esq.get_gene2(geneid, **kwargs)
+            self.return_json(gene)
+        else:
+            raise tornado.web.HTTPError(404)
+
+    def post(self):
+        '''
+           post to /gene
+
+           with parameters of
+            {'ids': '1017,1018',
+             'filter': 'symbol,name'}
+
+            {'ids': '1017',
+             'filter': 'symbol,name,reporter.HG-U133_Plus_2'}
+        '''
+        kwargs = self.get_query_params()
+        geneids = kwargs.pop('ids', None)
+        if geneids:
+            geneids = [_id.strip() for _id in geneids.split(',')]
+            res = self.esq.mget_gene2(geneids, **kwargs)
+            self.return_json(res)
+        else:
+            raise tornado.web.HTTPError(404)
+
+
+class QueryHandler(BaseHandler):
+    esq = ESQuery()
+
     def get(self):
-        q = self.get_argument('q', None)
-        kwargs = {}
+        kwargs = self.get_query_params()
+        q = kwargs.pop('q', None)
         if q:
-            fields = self.get_argument('fields', None)
-            if fields:
-                fields = fields.split(',')
-                kwargs['fields'] = fields
+            fields = kwargs.get('fields', None)
             explain = self.get_argument('explain', None)
             if explain and explain.lower()=='true':
                 kwargs['explain'] = True
             for arg in ['from', 'size', 'mode']:
-                value = self.get_argument(arg, None)
+                value = kwargs.get(arg, None)
                 if value:
                     kwargs[arg] = int(value)
-            sample = self.get_argument('sample', None) == 'true'
-            esq = ESQuery()
+            sample = kwargs.get('sample', None) == 'true'
+
             if sample:
-                res = esq.query_sample(q, **kwargs)
+                res = self.esq.query_sample(q, **kwargs)
             else:
-                res = esq.query(q, **kwargs)
-            _json_data = json.dumps(res)
-            self.set_header("Content-Type", "application/json; charset=UTF-8")
-            self.write(_json_data)
+                res = self.esq.query(q, **kwargs)
+            self.return_json(res)
 
 
 class IntervalQueryHandler(tornado.web.RequestHandler):
@@ -182,7 +206,8 @@ APP_LIST = [
 #        (r"/status", StatusCheckHandler),
 #        (r"/metadata", MetaDataHandler),
 #        (r"/release_notes", ReleaseNotesHandler),
-        (r"/gene/([\w\-\.]+)/?", GeneHandler),
+        (r"/gene/([\w\-\.]+)/?", GeneHandler),   #for get request
+        (r"/gene/?", GeneHandler),               #for post request
         (r"/query/?", QueryHandler),
         (r"/interval/?", IntervalQueryHandler),
         (r"/mongo/(\w+)/?(\w*)/?(\w*)/?", MongoViewer),
