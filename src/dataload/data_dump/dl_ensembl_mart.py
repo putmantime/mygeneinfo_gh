@@ -115,6 +115,8 @@ class BioMart(object):
         self.template = XML_QUERY_TEMPLATE
         #self.species_li = species_li
 
+        self.no_confirm = False
+
     def _query(self, *args, **kwargs):
         h = httplib2.Http()
         res, con = h.request(*args, **kwargs)
@@ -159,7 +161,7 @@ class BioMart(object):
 
     def _fetch_data(self, outfile, attributes, filters='', header=None, debug=False):
         cnt_all = 0
-        out_f, outfile = safewfile(outfile)
+        out_f, outfile = safewfile(outfile, prompt=(not self.no_confirm), default='O')
         if header:
             out_f.write('\t'.join(header)+'\n')
         print 'Dumping "%s"...' % os.path.split(outfile)[1]
