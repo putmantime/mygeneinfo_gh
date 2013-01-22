@@ -100,3 +100,40 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
         print 'Finished.[total time: %s]' % timesofar(t0)
     finally:
         cur.close()
+
+def src_clean_archives(keep_last=1, src=None, verbose=True):
+    '''clean up archive collections in src db, only keep last <kepp_last>
+       number of archive.
+    '''
+    from utils.dataload import list2dict
+    from utils.common import ask
+
+    src = src or get_src_db()
+
+    archive_li = sorted([(coll.split('_archive_')[0], coll) for coll in src.collection_names() \
+                                                    if coll.find('archive')!=-1])
+    archive_d = list2dict(archive_li, 0, alwayslist=1)
+    coll_to_remove = []
+    for k,v in archive_d.items():
+        print k,
+        #check current collection exists
+        if src[k].count() > 0:
+            cnt = 0
+            for coll in sorted(v)[:-keep_last]:
+                coll_to_remove.append(coll)
+                cnt += 1
+            print "\t\t%s archived collections marked to remove." % cnt
+        else:
+            print 'skipped. Missing current "%s" collection!' % k
+    if len(coll_to_remove)>0:
+        print "%d archived collections will be removed." % len(coll_to_remove)
+        if verbose:
+            for coll in coll_to_remove:
+                print '\t', coll
+        if ask("Continue?") == 'Y':
+            for coll in coll_to_remove:
+                src[coll].drop()
+            print "Done.[%s collections removed]" % len(coll_to_remove)
+        print "Aborted."
+    else:
+        print "Nothing needs to be removed."
