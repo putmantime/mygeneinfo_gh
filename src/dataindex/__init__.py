@@ -7,6 +7,7 @@
 
 import types
 import json
+import re
 from utils.common import is_int
 from utils.es import get_es
 from pyes.exceptions import NotFoundException
@@ -32,6 +33,7 @@ class ESQuery:
         self.conn = es
         self.conn.model = dummy_model
         self._index = 'genedoc_mygene'
+        self._index = 'genedoc_mygene_allspecies'
         self._doc_type = 'gene'
         #self._doc_type = 'gene_sample'
 
@@ -63,6 +65,27 @@ class ESQuery:
         if type(fields) in types.StringTypes:
             fields = [x.strip() for x in fields.split(',')]
         return fields
+
+    def _parse_interval_query(self, query):
+        '''Check if the input query string matches interval search regex,
+           if yes, return a dictionary with three key-value pairs:
+              chr
+              gstart
+              gend
+            , otherwise, return None.
+        '''
+        pattern = r'chr(?P<chr>\w+):(?P<gstart>[0-9,]+)-(?P<gend>[0-9,]+)'
+        if query:
+            mat = re.search(pattern, query)
+            if mat:
+                return mat.groupdict()
+
+    def _is_raw_string_query(self, query):
+        '''Return True if input query is a wildchar/fielded/boolean query.'''
+        for v in ["*", "?", ':',' AND ', ' OR ']:
+            if query.find(v) != -1:
+                return True
+        return False
 
     def get_gene(self, geneid, fields=None, **kwargs):
         if fields:
@@ -108,20 +131,39 @@ class ESQuery:
         mode = int(kwargs.pop('mode', 1))
         raw = kwargs.pop('raw', False)
         qbdr = ESQueryBuilder(fields=fields, **kwargs)
-        _q = qbdr.build(q, mode)
-        res = self._search(_q)
-        if not raw:
-            _res = res['hits']
-            _res['took'] = res['took']
-            for v in _res['hits']:
-                del v['_type']
-                del v['_index']
-                for attr in ['fields', '_source']:
-                    if attr in v:
-                        v.update(v[attr])
-                        del v[attr]
-                        break
-            res = _res
+        _q = None
+        # Check if special interval query pattern exists
+        interval_query = self._parse_interval_query(q)
+        if interval_query:
+            #should also passing a "taxid" along with interval.
+            taxid = kwargs.pop('taxid', None)
+            if taxid:
+                interval_query['taxid'] = taxid
+                _q = qbdr.build_genomic_pos_query(**interval_query)
+
+        # Check if wildchar/fielded/boolean query
+        elif self._is_raw_string_query(q):
+            _q = qbdr.build(q, mode=3)   #raw string query
+        else:
+        # normal text query
+            _q = qbdr.build(q, mode)
+        if _q:
+            res = self._search(_q)
+            if not raw:
+                _res = res['hits']
+                _res['took'] = res['took']
+                for v in _res['hits']:
+                    del v['_type']
+                    del v['_index']
+                    for attr in ['fields', '_source']:
+                        if attr in v:
+                            v.update(v[attr])
+                            del v[attr]
+                            break
+                res = _res
+        else:
+            res = {'error': "Invalid query. Please check parameters."}
+
         return res
 
     def query_sample(self, q, **kwargs):
@@ -154,6 +196,9 @@ class ESQueryBuilder():
         """
         self.options = query_options
         self._parse_sort_option(self.options)
+        self._allowed_options = ['fields', 'from', 'size', 'sort', 'explain']
+        for key in set(self.options) - set(self._allowed_options):
+                del self.options[key]
 
     def _parse_sort_option(self, options):
         sort = options.get('sort', None)
@@ -406,6 +451,9 @@ class ESQueryBuilder():
         return '\n'.join(_q)
 
     def build_genomic_pos_query(self, taxid, chr, gstart, gend):
+        taxid = int(taxid)
+        gstart = int(gstart)
+        gend = int(gend)
         _query = {
                    "nested" : {
                        "path" : "genomic_pos",
