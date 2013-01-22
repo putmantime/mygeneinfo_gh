@@ -57,7 +57,7 @@ class ESQuery:
         elif total == 1 and single_hit:
             return self._get_genedoc(hits['hits'][0])
         else:
-            return [self._get_genedoc(hit) for hit in hits]
+            return [self._get_genedoc(hit) for hit in hits['hits']]
 
     def _formated_fields(self, fields):
         if type(fields) in types.StringTypes:
@@ -86,8 +86,9 @@ class ESQuery:
         if fields:
             fields = self._formated_fields(fields)
         raw = kwargs.pop('raw', False)
+        scopes = kwargs.pop('scopes', None)
         qbdr = ESQueryBuilder(fields=fields, **kwargs)
-        _q = qbdr.build_id_query(geneid)
+        _q = qbdr.build_id_query(geneid, scopes)
         res =  self._search(_q)
         return res if raw else self._cleaned_res(res, empty=None, single_hit=True)
 
@@ -95,8 +96,9 @@ class ESQuery:
         if fields:
             fields = self._formated_fields(fields)
         raw = kwargs.pop('raw', False)
+        scopes = kwargs.pop('scopes', None)
         qbdr = ESQueryBuilder(fields=fields, **kwargs)
-        _q = qbdr.build_multiple_id_query(geneid_list)
+        _q = qbdr.build_multiple_id_query(geneid_list, scopes)
         res = self._msearch(_q)
         return [_res if raw else self._cleaned_res(_res, empty=None, single_hit=True) for _res in res['responses']]
 
@@ -104,9 +106,23 @@ class ESQuery:
         if fields:
             fields = self._formated_fields(fields)
         mode = int(kwargs.pop('mode', 1))
+        raw = kwargs.pop('raw', False)
         qbdr = ESQueryBuilder(fields=fields, **kwargs)
         _q = qbdr.build(q, mode)
-        return self._search(_q)
+        res = self._search(_q)
+        if not raw:
+            _res = res['hits']
+            _res['took'] = res['took']
+            for v in _res['hits']:
+                del v['_type']
+                del v['_index']
+                for attr in ['fields', '_source']:
+                    if attr in v:
+                        v.update(v[attr])
+                        del v[attr]
+                        break
+            res = _res
+        return res
 
     def query_sample(self, q, **kwargs):
         self._doc_type = 'gene_sample'
@@ -130,12 +146,31 @@ def test2(q):
 class ESQueryBuilder():
     def __init__(self, **query_options):
         """You can pass these options:
-            fields
-            from
-            size
-            explain
+            fields     default ['name', 'symbol', 'taxid']
+            from       default 0
+            size       default 10
+            sort       e.g. sort='entrezgene,-symbol'
+            explain    true or false
         """
         self.options = query_options
+        self._parse_sort_option(self.options)
+
+    def _parse_sort_option(self, options):
+        sort = options.get('sort', None)
+        if sort:
+            _sort_array = []
+            for field in sort.split(','):
+                field = field.strip()
+                if field == 'name' or field[1:]=='name':
+                    #sorting on "name" field is ignored, as it is a multi-text field.
+                    continue
+                if field.startswith('-'):
+                    _f = {"%s" % field[1:]: "desc"}
+                else:
+                    _f = {"%s" % field: "asc"}
+                _sort_array.append(_f)
+            options["sort"] = _sort_array
+        return options
 
     def dis_max_query(self, q):
         _query = {
@@ -323,30 +358,50 @@ class ESQueryBuilder():
             _q.update(self.options)
         return _q
 
-    def build_id_query(self, id):
-        if is_int(id):
-            _query = {
-                "multi_match": {
-                    "query": id,
-                    "fields": ['entrezgene', 'retired']
+    def build_id_query(self, id, scopes=None):
+        if scopes is None:
+            #by default search three fields ['entrezgene', 'ensemblgene', 'retired']
+            if is_int(id):
+                _query = {
+                    "multi_match": {
+                        "query": id,
+                        "fields": ['entrezgene', 'retired']
+                    }
                 }
-            }
+            else:
+                _query = {
+                    "match": {
+                        "ensemblgene": "%s" % id
+                    }
+                }
         else:
-            _query = {
-                "match": {
-                    "ensemblgene": "%s" % id
+            if type(scopes) in types.StringTypes:
+                _field = scopes
+                _query = {
+                    "match": {
+                        _field: "%s" % id
+                    }
                 }
-            }
+            elif type(scopes) in (types.ListType, types.TupleType):
+                _query = {
+                    "multi_match": {
+                        "query": "%s" % id,
+                        "fields": scopes
+                    }
+                }
+            else:
+                raise ValueError('"scopes" cannot be "%s" type' % type(scopes))
+
         _q = {"query": _query}
         if self.options:
             _q.update(self.options)
         return _q
 
-    def build_multiple_id_query(self, id_list):
+    def build_multiple_id_query(self, id_list, scopes=None):
         """make a query body for msearch query."""
         _q = []
         for id in id_list:
-            _q.extend(['{}', json.dumps(self.build_id_query(id))])
+            _q.extend(['{}', json.dumps(self.build_id_query(id, scopes))])
         _q.append('')
         return '\n'.join(_q)
 
