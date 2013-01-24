@@ -141,8 +141,8 @@ class ESQuery:
                 interval_query['taxid'] = taxid
                 _q = qbdr.build_genomic_pos_query(**interval_query)
 
-        # Check if wildchar/fielded/boolean query
-        elif self._is_raw_string_query(q):
+        # Check if wildchar/fielded/boolean query, excluding special goid query
+        elif self._is_raw_string_query(q) and not q.lower().startswith('go:'):
             _q = qbdr.build(q, mode=3)   #raw string query
         else:
         # normal text query
