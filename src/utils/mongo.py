@@ -73,11 +73,15 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
         doc_li = []
     cnt = 0
     t1 = time.time()
-    print "Processing %d-%d documents..." % (cnt+1, cnt+step) ,
     try:
-        if s: cur.skip(s)
-        if e: cur.limit(e)
+        if s:
+            cur.skip(s)
+            cnt = s
+            print "Skipping %d documents." % s
+        if e:
+            cur.limit(e)
         cur.batch_size(step)
+        print "Processing %d-%d documents..." % (cnt+1, min(cnt+step, n)) ,
         for doc in cur:
             if inbatch:
                 doc_li.append(doc)
@@ -88,9 +92,9 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
                 if inbatch:
                     yield doc_li
                     doc_li = []
-                print 'Done.[%s]' % timesofar(t1)
+                print 'Done.[%.1f%%,%s]' % (cnt*100./n, timesofar(t1))
                 t1 = time.time()
-                print "Processing %d-%d documents..." % (cnt+1, cnt+step) ,
+                print "Processing %d-%d documents..." % (cnt+1, min(cnt+step, n)) ,
         if inbatch and doc_li:
             #Important: need to yield the last batch here
             yield doc_li
@@ -101,7 +105,7 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
     finally:
         cur.close()
 
-def src_clean_archives(keep_last=1, src=None, verbose=True):
+def src_clean_archives(keep_last=1, src=None, verbose=True, noconfirm=False):
     '''clean up archive collections in src db, only keep last <kepp_last>
        number of archive.
     '''
@@ -130,10 +134,11 @@ def src_clean_archives(keep_last=1, src=None, verbose=True):
         if verbose:
             for coll in coll_to_remove:
                 print '\t', coll
-        if ask("Continue?") == 'Y':
+        if noconfirm or ask("Continue?") == 'Y':
             for coll in coll_to_remove:
                 src[coll].drop()
             print "Done.[%s collections removed]" % len(coll_to_remove)
-        print "Aborted."
+        else:
+            print "Aborted."
     else:
         print "Nothing needs to be removed."
