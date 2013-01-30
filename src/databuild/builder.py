@@ -347,6 +347,10 @@ class DataBuilder():
                 print 'Warning: "%s" collection has no mapping data.' % collection
         mapping = {"properties": mapping,
                    "dynamic": False}
+        #allow source compression
+        #Note: no need of source compression due to "Store Level Compression"
+        #mapping['_source'] = {'compress': True,}
+        #                      'compress_threshold': '1kb'}
         return mapping
 
     def build_index(self):
@@ -354,8 +358,12 @@ class DataBuilder():
         es_idxer = ESIndexer(self.get_mapping())
         es_idxer.ES_INDEX_NAME = target_collection.name
         es_idxer.step = 1000
+        #es_idxer.s = 513000
+        es_idxer.delete_index_type(es_idxer.ES_INDEX_TYPE, noconfirm=False)
         es_idxer.create_index()
         es_idxer.build_index(target_collection, verbose=False)
+        es_idxer.optimize()
+
 
 
 if __name__ == '__main__':
@@ -375,10 +383,11 @@ if __name__ == '__main__':
 
     freeze_support()
     bdr = DataBuilder(backend='mongodb')
-    bdr.load_build_config('mygene_allspecies')
+    bdr.load_build_config('mygene')
+    bdr.prepare_target()
     #bdr.use_parallel = True
     #bdr.merge()
-    #bdr.build_index()
+    bdr.build_index()
 
     print "Finished.", timesofar(t0)
 
