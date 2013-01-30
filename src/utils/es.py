@@ -17,7 +17,7 @@ from utils.mongo import doc_feeder
 
 def get_es():
     conn = ES(ES_HOST, default_indices=[ES_INDEX_NAME],
-              timeout=60.0)
+              timeout=120.0, max_retries=10)
     return conn
 
 
@@ -27,6 +27,8 @@ class ESIndexer(object):
         self.ES_INDEX_NAME = ES_INDEX_NAME
         self.ES_INDEX_TYPE = ES_INDEX_TYPE
         self.step = 10000
+        self.s = None     #optionally, can specify number of records to skip,
+                          #useful to continue indexing after an error.
         self._mapping = mapping
 
     def check(self):
@@ -93,6 +95,11 @@ class ESIndexer(object):
             print conn.put_mapping(index_type,
                                    _mapping,
                                    [index_name])
+    def count(self, query=None, index_type=None):
+        conn = self.conn
+        index_name = self.ES_INDEX_NAME
+        index_type = index_type or self.ES_INDEX_TYPE
+        return conn.count(query, index_name, index_type)
 
     def get(self, id, **kwargs):
         '''get a specific doc by its id.'''
@@ -127,7 +134,15 @@ class ESIndexer(object):
 
 
     def optimize(self):
-        return self.conn.optimize(self.ES_INDEX_NAME, wait_for_merge=True)
+        '''optimize the default index.'''
+        return self.conn.indices.optimize(self.ES_INDEX_NAME,
+                                          wait_for_merge=True,
+                                          max_num_segments=5)
+
+    def optimize_all(self):
+        """optimize all indices"""
+        return self.conn.indices.optimize([], wait_for_merge=True,
+                                              max_num_segments=5)
 
     def get_field_mapping(self):
 #        raise NotImplementedError
@@ -139,16 +154,28 @@ class ESIndexer(object):
         index_type = self.ES_INDEX_TYPE
 
         self.verify_mapping(update_mapping=update_mapping)
+        #update some settings for bulk indexing
+        conn.indices.update_settings(index_name,
+            {
+                "refresh_interval" : "-1",              #disable refresh temporarily
+                "index.store.compress.stored": True,    #store-level compression
+                #"index.store.compress.tv": True,        #store-level compression
+            })
 
         print "Building index..."
         cnt = 0
-        for doc in doc_feeder(collection, step=self.step):
+        for doc in doc_feeder(collection, step=self.step, s=self.s):
             conn.index(doc, index_name, index_type, doc['_id'], bulk=bulk)
             cnt += 1
             if verbose:
                 print cnt, ':', doc['_id']
         print conn.flush()
         print conn.refresh()
+        #restore some settings after bulk indexing is done.
+        conn.indices.update_settings(index_name,
+            {
+                "refresh_interval" : "1s",              #default settings
+            })
         print 'Done! - {} docs indexed.'.format(cnt)
 
     def get_id_list(self, index_type=None, index_name=None, step=10000):
@@ -168,6 +195,4 @@ class ESIndexer(object):
                 break
             else:
                 id_li.extend([doc['_id'] for doc in res.hits.hits])
-
-
-
+        return id_li
