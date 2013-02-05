@@ -99,7 +99,8 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
             #Important: need to yield the last batch here
             yield doc_li
 
-        print 'Done.[%s]' % timesofar(t1)
+        #print 'Done.[%s]' % timesofar(t1)
+        print 'Done.[%.1f%%,%s]' % (cnt*100./n, timesofar(t1))
         print "="*20
         print 'Finished.[total time: %s]' % timesofar(t0)
     finally:

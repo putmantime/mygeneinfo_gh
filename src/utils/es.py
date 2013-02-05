@@ -14,12 +14,29 @@ from config import ES_HOST, ES_INDEX_NAME, ES_INDEX_TYPE
 from utils.common import ask
 from utils.mongo import doc_feeder
 
+import time
+import sys
+from multiprocessing import Process, Queue, current_process, freeze_support
+NUMBER_OF_PROCESSES = 8
+
 
 def get_es():
     conn = ES(ES_HOST, default_indices=[ES_INDEX_NAME],
               timeout=120.0, max_retries=10)
     return conn
 
+
+def lastexception():
+    exc_type,exc_value,tb = sys.exc_info()
+    if exc_type is None:
+        print "No exception occurs."
+        return
+    print exc_type.__name__ + ':' ,
+    try:
+        excArgs = exc_value.__dict__["args"]
+    except KeyError:
+        excArgs = ()
+    return str(exc_type)+':'+''.join([str(x) for x in excArgs])
 
 class ESIndexer(object):
     def __init__(self, mapping=None):
@@ -29,6 +46,7 @@ class ESIndexer(object):
         self.step = 10000
         self.s = None     #optionally, can specify number of records to skip,
                           #useful to continue indexing after an error.
+        self.use_parallel = False
         self._mapping = mapping
 
     def check(self):
@@ -151,7 +169,7 @@ class ESIndexer(object):
     def build_index(self, collection, update_mapping=False, bulk=True, verbose=False):
         conn = self.conn
         index_name = self.ES_INDEX_NAME
-        index_type = self.ES_INDEX_TYPE
+        #index_type = self.ES_INDEX_TYPE
 
         self.verify_mapping(update_mapping=update_mapping)
         #update some settings for bulk indexing
@@ -163,12 +181,17 @@ class ESIndexer(object):
             })
 
         print "Building index..."
-        cnt = 0
-        for doc in doc_feeder(collection, step=self.step, s=self.s):
-            conn.index(doc, index_name, index_type, doc['_id'], bulk=bulk)
-            cnt += 1
-            if verbose:
-                print cnt, ':', doc['_id']
+        if self.use_parallel:
+            cnt = self._build_index_parallel(collection, bulk, verbose)
+        else:
+            cnt = self._build_index_sequential(collection, bulk, verbose)
+
+        # cnt = 0
+        # for doc in doc_feeder(collection, step=self.step, s=self.s):
+        #     conn.index(doc, index_name, index_type, doc['_id'], bulk=bulk)
+        #     cnt += 1
+        #     if verbose:
+        #         print cnt, ':', doc['_id']
         print conn.flush()
         print conn.refresh()
         #restore some settings after bulk indexing is done.
@@ -177,6 +200,78 @@ class ESIndexer(object):
                 "refresh_interval" : "1s",              #default settings
             })
         print 'Done! - {} docs indexed.'.format(cnt)
+
+    def _build_index_sequential(self, collection, bulk=True, verbose=False):
+        conn = self.conn
+        index_name = self.ES_INDEX_NAME
+        index_type = self.ES_INDEX_TYPE
+        cnt = 0
+        cnt_tmp = 0
+        for doc in doc_feeder(collection, step=self.step, s=self.s):
+            if 'genomic_pos' in doc: cnt_tmp += 1
+            conn.index(doc, index_name, index_type, doc['_id'], bulk=bulk)
+            cnt += 1
+            if verbose:
+                print cnt, ':', doc['_id']
+        print 'cnt_tmp:', cnt_tmp
+        return cnt
+
+    def _build_index_parallel(self, collection, bulk=True, verbose=False):
+        conn = self.conn
+        index_name = self.ES_INDEX_NAME
+        index_type = self.ES_INDEX_TYPE
+
+        input_queue = Queue()
+        #input_queue.conn_pool =
+
+        def worker(q, index_name, index_type, bulk):
+            conn = get_es()
+            while conn:
+                doc = q.get()
+                if doc == 'STOP':
+                    break
+                #conn.index(doc, index_name, index_type, doc['_id'], bulk=bulk)
+
+                try:
+                    conn.index(doc, index_name, index_type, doc['_id'], bulk=bulk)
+                except:
+                    print "[%s:%s] %s" % (current_process().name, doc['_id'], lastexception())
+
+                # retries = 0
+                # while retries<10:
+                #     try:
+                #         conn.index(doc, index_name, index_type, doc['_id'], bulk=bulk)
+                #     except:
+                #         retries += 1
+                # if retries == 10:
+                #     print "[%s:%s] %s" % (current_process(), doc['_id'], lastexception())
+
+            del conn
+
+        # Start worker processes
+        for i in range(NUMBER_OF_PROCESSES):
+            Process(target=worker, args=(input_queue, index_name, index_type, bulk)).start()
+
+        cnt = 0
+        for doc in doc_feeder(collection, step=self.step, s=self.s):
+            input_queue.put(doc)
+            cnt += 1
+            if verbose:
+                print cnt, ':', doc['_id']
+
+
+        # Tell child processes to stop
+        for i in range(NUMBER_OF_PROCESSES):
+            input_queue.put('STOP')
+
+        # while 1:
+        #     if input_queue.empty():
+        #         break
+        #     else:
+        #         time.sleep(5)
+
+        return cnt
+
 
     def get_id_list(self, index_type=None, index_name=None, step=10000):
         '''return a list of all doc ids in an index_type.'''
