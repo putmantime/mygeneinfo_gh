@@ -191,16 +191,17 @@ class DataBuilder():
                         geneid_set.append(_doc['_id'])
                 if _doc_li:
                     #target_collection.insert(_doc_li, manipulate=False, check_keys=False)
-                    self.target.insert(doc_li)
+                    self.target.insert(_doc_li)
+            cnt_matching_ensembl_genes = cnt_total_ensembl_genes - cnt_ensembl_only_genes
             print '# of ensembl Gene IDs in total: %d' % cnt_total_ensembl_genes
-            print '# of ensembl Gene IDs match entrez Gene IDs: %d' % len(ensembl2entrez)
+            print '# of ensembl Gene IDs match entrez Gene IDs: %d' % cnt_matching_ensembl_genes
             print '# of ensembl Gene IDs DO NOT match entrez Gene IDs: %d' % cnt_ensembl_only_genes
 
             geneid_set = set(geneid_set)
             print '# of total Root Gene IDs: %d' % len(geneid_set)
             self.log_src_build({'build.stats.total_entrez_genes': cnt_total_entrez_genes,
                                 'build.stats.total_ensembl_genes': cnt_total_ensembl_genes,
-                                'build.stats.total_ensembl_genes_mapped_to_entrez': len(ensembl2entrez),
+                                'build.stats.total_ensembl_genes_mapped_to_entrez': cnt_matching_ensembl_genes,
                                 'build.stats.total_ensembl_only_genes': cnt_ensembl_only_genes,
                                 'build.stats.total_genes': len(geneid_set)
                                })
@@ -357,9 +358,11 @@ class DataBuilder():
         target_collection = self.target.target_collection
         es_idxer = ESIndexer(self.get_mapping())
         es_idxer.ES_INDEX_NAME = target_collection.name
-        es_idxer.step = 1000
-        #es_idxer.s = 513000
-        es_idxer.delete_index_type(es_idxer.ES_INDEX_TYPE, noconfirm=False)
+        es_idxer.step = 10000
+        #es_idxer.use_parallel = True
+        #es_idxer.s = 609000
+        es_idxer.delete_index_type(es_idxer.ES_INDEX_TYPE, noconfirm=True)
+        #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
         es_idxer.create_index()
         es_idxer.build_index(target_collection, verbose=False)
         es_idxer.optimize()
@@ -384,7 +387,8 @@ if __name__ == '__main__':
     freeze_support()
     bdr = DataBuilder(backend='mongodb')
     bdr.load_build_config('mygene')
-    bdr.prepare_target()
+    #bdr.load_build_config('mygene_allspecies')
+    #bdr.prepare_target()
     #bdr.use_parallel = True
     #bdr.merge()
     bdr.build_index()
