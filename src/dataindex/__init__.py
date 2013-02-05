@@ -8,10 +8,13 @@
 import types
 import json
 import re
-from utils.common import is_int
+import time
+from utils.common import is_int, timesofar
 from utils.es import get_es
 from pyes.exceptions import NotFoundException
 from pyes.utils import make_path
+from pyes.query import MatchAllQuery, StringQuery
+from config import ES_INDEX_NAME, ES_INDEX_TYPE
 #from pyelasticsearch import ElasticSearch
 
 #es0 = ElasticSearch('http://su02:9200/')
@@ -32,9 +35,12 @@ class ESQuery:
         #self.conn0 = es0
         self.conn = es
         self.conn.model = dummy_model
-        self._index = 'genedoc_mygene'
-        self._index = 'genedoc_mygene_allspecies'
-        self._doc_type = 'gene'
+        # self._index = 'genedoc_mygene'
+        # self._index = 'genedoc_mygene_allspecies'
+        # self._doc_type = 'gene'
+        self._index = ES_INDEX_NAME
+        self._doc_type = ES_INDEX_TYPE
+
         #self._doc_type = 'gene_sample'
 
     def _search(self, q):
@@ -48,6 +54,8 @@ class ESQuery:
     def _get_genedoc(self, hit):
         doc = hit.get('_source', hit.get('fields'))
         doc.setdefault('_id', hit['_id'])
+        if '_version' in hit:
+            doc.setdefault('_version', hit['_version'])
         return doc
 
     def _cleaned_res(self, res, empty=[],single_hit=False):
@@ -178,6 +186,50 @@ class ESQuery:
         _q = qbdr.build_genomic_pos_query(taxid, chr,  gstart, gend)
         return self._search(_q)
 
+    def doc_feeder(self, step=1000, s=None, e=None, inbatch=False, query=None, **kwargs):
+        '''A iterator for returning docs in a ES index with batch query.
+           additional filter query can be passed via "query", e.g.,
+           doc_feeder(query='taxid:9606'}})
+           other parameters can be passed via "**kwargs":
+                fields, from, size etc.
+        '''
+        if query:
+            q = StringQuery(query)
+        else:
+            q = MatchAllQuery()
+        raw_res = None
+
+        cnt = 0
+        t0 = time.time()
+        while 1:
+            t1 = time.time()
+            if raw_res is None:
+                raw_res = self.conn.search_raw(q, self._index, self._doc_type,
+                      start=s, size=step, scan=True, scroll='5m', **kwargs)
+                n = raw_res['hits']['total']
+                print 'Retrieving %d documents from index "%s/%s".' % (n, self._index, self._doc_type)
+            else:
+                raw_res = self.conn.search_scroll(raw_res._scroll_id, scroll='5m')
+            hits_cnt = len(raw_res['hits']['hits'])
+            if hits_cnt == 0:
+                break
+            else:
+
+                print "Processing %d-%d documents..." % (cnt+1, cnt+hits_cnt) ,
+                res = self._cleaned_res(raw_res)
+                if inbatch:
+                    yield res
+                else:
+                    for hit in res:
+                        yield hit
+                cnt += hits_cnt
+                print 'Done.[%.1f%%,%s]' % (cnt*100./n, timesofar(t1))
+                if e and cnt > e:
+                    break
+
+        print "="*20
+        print 'Finished.[total docs: %s, total time: %s]' % (cnt, timesofar(t0))
+
 
 
 def test2(q):
@@ -196,7 +248,7 @@ class ESQueryBuilder():
         """
         self.options = query_options
         self._parse_sort_option(self.options)
-        self._allowed_options = ['fields', 'from', 'size', 'sort', 'explain']
+        self._allowed_options = ['fields', 'start', 'from', 'size', 'sort', 'explain', 'version']
         for key in set(self.options) - set(self._allowed_options):
                 del self.options[key]
 
