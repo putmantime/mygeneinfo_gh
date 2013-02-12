@@ -63,7 +63,7 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
        additional filter query can be passed via "query", e.g.,
        doc_feeder(collection, query={'taxid': {'$in': [9606, 10090, 10116]}})
     '''
-    cur = collection.find(query, timeout=True)
+    cur = collection.find(query, timeout=False)
     n = cur.count()
     s = s or 0
     e = e or n
@@ -79,7 +79,7 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
             cnt = s
             print "Skipping %d documents." % s
         if e:
-            cur.limit(e)
+            cur.limit(e - (s or 0))
         cur.batch_size(step)
         print "Processing %d-%d documents..." % (cnt+1, min(cnt+step, n)) ,
         for doc in cur:
