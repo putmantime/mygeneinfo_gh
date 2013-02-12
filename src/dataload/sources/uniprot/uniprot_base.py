@@ -68,8 +68,13 @@ def load_uniprot():
         elif ensembl_id:
             entrez_id = ensembl2geneid.get(ensembl_id, None)
             if entrez_id:
+                #if ensembl_id can be mapped to entrez_id
                 for _eid in entrez_id:
                     xli2.append((uniprot_acc, section, _eid))
+            else:
+                #otherwise, just use ensembl_id
+                xli2.append((uniprot_acc, section, ensembl_id))
+
     gene2uniprot = list2dict(list_nondup(xli2), 2, alwayslist=True)
     gene2uniprot = value_convert(gene2uniprot, _dict_convert, traverse_list=False)
     load_done('[%d, %s]' % (len(gene2uniprot), timesofar(t0)))
@@ -102,6 +107,9 @@ def load_x(idx, fieldname, cvt_fn=None):
                 if entrez_id:
                     for _eid in entrez_id:
                         xli2.append((_eid, x_value))
+                else:
+                    xli2.append((ensembl_id, x_value))
+
     gene2x = list2dict(list_nondup(xli2), 0)
     fn = lambda value: {fieldname: sorted(value) if type(value) is types.ListType else value}
     gene2x = value_convert(gene2x, fn, traverse_list=False)
