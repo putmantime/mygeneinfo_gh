@@ -58,6 +58,9 @@ class DataBuilder():
         self.step = 10000
         self.use_parallel = False
         self.merge_logging = True     #save output into a logging file when merge is called.
+
+        self.using_ipython_cluster = False
+        self.shutdown_ipengines_after_done = False
         self.log_folder = LOG_FOLDER
 
         self._build_config = build_config
@@ -70,8 +73,12 @@ class DataBuilder():
             self.target = databuild.backend.GeneDocMongoDBBackend()
         elif backend == 'es':
             self.target = databuild.backend.GeneDocESBackend(ESIndexer())
-        # elif backend == 'couchdb':
-        #     self.target = databuild.backend.GeneDocCouchDBBackend()
+        elif backend == 'couchdb':
+            from config import COUCHDB_URL
+            import couchdb
+            self.target = databuild.backend.GeneDocCouchDBBackend(couchdb.Server(COUCHDB_URL))
+        elif backend == 'memory':
+            self.target = databuild.backend.GeneDocMemeoryBackend()
         else:
             raise ValueError('Invalid backend "%s".' % backend)
 
@@ -120,10 +127,14 @@ class DataBuilder():
         '''call self.update_backend() after validating self._build_config.'''
         if self.target.name == 'mongodb':
             _db = get_target_db()
-            self.target.target_collection = _db['genedoc'+'_'+self._build_config['name']]
+            self.target.target_collection = _db['genedoc'+'_'+self._build_config['name'] + '_iptest_3']   #####
         elif self.target.name == 'es':
             self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
             self.target.target_esidxer._mapping = self.get_mapping()
+        elif self.target.name == 'couchdb':
+            self.target.db_name = 'genedoc'+'_'+self._build_config['name']
+        elif self.target.name == 'memory':
+            self.target.target_name = 'genedoc'+'_'+self._build_config['name']
 
     def get_src_master(self):
         src_master = get_src_master(self.src.connection)
@@ -220,39 +231,11 @@ class DataBuilder():
         self.validate_src_collections()
         self.log_building_start()
         try:
-            if restart_at == 0:
-                self.target.drop()
-                self.target.prepare()
-                geneid_set = self.make_genedoc_root()
+            if self.using_ipython_cluster:
+                self._merge_ipython_cluster(step=step)
             else:
-                if not self._entrez_geneid_d:
-                    self._load_entrez_geneid_d()
-                #geneid_set = set([x['_id'] for x in target_collection.find(fields=[], manipulate=False)])
-                geneid_set = set(self.target.get_id_list())
-                print '\t', len(geneid_set)
+                self._merge_local(step=step, restart_at=restart_at)
 
-            src_collection_list = self._build_config['sources']
-            src_cnt = 0
-            for collection in src_collection_list:
-                if collection in ['entrez_gene', 'ensembl_gene']:
-                    continue
-
-                src_cnt += 1
-
-                id_type = self.src_master[collection].get('id_type', None)
-                flag_need_id_conversion =  id_type is not None
-                if flag_need_id_conversion:
-                    idmapping_d = self.get_idmapping_d(id_type)
-                else:
-                    idmapping_d = None
-
-                if restart_at <= src_cnt:
-                    if self.use_parallel:
-                        self._merge_parallel(collection, geneid_set,
-                                             step=step, idmapping_d=idmapping_d)
-                    else:
-                        self._merge_sequential(collection, geneid_set,
-                                               step=step, idmapping_d=idmapping_d)
             t1 = round(time.time() - t0, 0)
             t = timesofar(t0)
             self.log_src_build({'build.status': 'success',
@@ -263,6 +246,136 @@ class DataBuilder():
         finally:
             if self.merge_logging:
                 sys.stdout.close()
+
+    def _merge_ipython_cluster(self, step=100000):
+        '''Do the merging on ipython cluster.'''
+        from IPython.parallel import Client, require
+        from config import CLUSTER_MONGODB_SERVER, CLUSTER_CLIENT_JSON
+
+        t0 = time.time()
+        src_collection_list = [collection for collection in self._build_config['sources']
+                                    if collection not in ['entrez_gene', 'ensembl_gene']]
+
+        self._load_entrez_geneid_d()
+        self._load_ensembl2entrez_li()
+        geneid_set = self.target.get_id_list()
+        print len(geneid_set)
+
+        # self.target.drop()
+        # self.target.prepare()
+        # geneid_set = self.make_genedoc_root()
+
+        print timesofar(t0)
+
+        rc = Client(CLUSTER_CLIENT_JSON)
+        dview = rc[:]
+        print "\t# nodes in use: {}".format(len(dview.targets))
+        print "\tpreparing nodes...",
+        t0 = time.time()
+        dview.block = False
+        dview.clear()
+        target_collection = self.target.target_collection
+        dview['server'] = target_collection.database.connection.host
+        #dview['server'] = CLUSTER_MONGODB_SERVER
+        dview['port'] = target_collection.database.connection.port
+        dview['src_db'] = self.src.name
+        dview['database'] = target_collection.database.name
+        dview['collection_name'] = target_collection.name
+        dview['timesofar'] = timesofar
+        dview['doc_feeder'] = doc_feeder
+        dview['alwayslist'] = alwayslist
+        dview['step'] = step
+        dview['src_master'] = self.src_master
+        dview['_idmapping_d_cache'] = self._idmapping_d_cache
+        dview['geneid_set'] = set(geneid_set)
+
+        print 'done. [{}]'.format(timesofar(t0))
+
+        @require('mongokit', 'time', 'types')
+        def worker(args, geneid_set=geneid_set):  #passing geneid_set as keyword parameter is neccessary
+                                                  # to avoid "cannot pickle code objects with closures" error.
+            collection, skip, limit = args
+            #t0 = time.time()
+            conn = mongokit.Connection(server, port)
+            src = conn[src_db]
+            target_collection = conn[database][collection_name]
+
+            id_type = src_master[collection].get('id_type', None)
+            flag_need_id_conversion =  id_type is not None
+            if flag_need_id_conversion:
+                idmapping_d = _idmapping_d_cache.get(id_type, None)
+            else:
+                idmapping_d = None
+            #geneid_set = set([x['_id'] for x in target_collection.find(fields=[], manipulate=False)])
+            for doc in src[collection].find(skip=skip, limit=limit):
+                _id = doc['_id']
+                if idmapping_d:
+                    _id = idmapping_d.get(_id, None) or _id
+                for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+                    __id = str(__id)
+                    if __id in geneid_set:
+                        doc.pop('_id', None)
+                        target_collection.update({'_id': __id}, {'$set': doc},
+                                                  manipulate=False,
+                                                  upsert=False)
+
+            #return time.time()-t0
+
+        t0 = time.time()
+        task_list = []
+        for collection in src_collection_list:
+            cnt = self.src[collection].count()
+            for s in range(0, cnt, step):
+                task_list.append((collection, s, step))
+        print "\t# of tasks: {}".format(len(task_list))
+        print "\tsubmitting...",
+        job = dview.map_async(worker, task_list)
+        print "done."
+        job.wait_interactive()
+        print "\t# of results returned: {}".format(len(job.result))
+        print "\ttotal time: {}".format(timesofar(t0))
+
+        if self.shutdown_ipengines_after_done:
+            print "\tshuting down all ipengine nodes...",
+            dview.shutdown()
+            print 'Done.'
+
+    def _merge_local(self, step=100000, restart_at=0):
+        if restart_at == 0:
+            self.target.drop()
+            self.target.prepare()
+            geneid_set = self.make_genedoc_root()
+        else:
+            if not self._entrez_geneid_d:
+                self._load_entrez_geneid_d()
+            #geneid_set = set([x['_id'] for x in target_collection.find(fields=[], manipulate=False)])
+            geneid_set = set(self.target.get_id_list())
+            print '\t', len(geneid_set)
+
+        src_collection_list = self._build_config['sources']
+        src_cnt = 0
+        for collection in src_collection_list:
+            if collection in ['entrez_gene', 'ensembl_gene']:
+                continue
+
+            src_cnt += 1
+
+            id_type = self.src_master[collection].get('id_type', None)
+            flag_need_id_conversion =  id_type is not None
+            if flag_need_id_conversion:
+                idmapping_d = self.get_idmapping_d(id_type)
+            else:
+                idmapping_d = None
+
+            if restart_at <= src_cnt:
+                if self.use_parallel:
+                    self.doc_queue = []
+                    self._merge_parallel_ipython(collection, geneid_set,
+                                         step=step, idmapping_d=idmapping_d)
+                else:
+                    self._merge_sequential(collection, geneid_set,
+                                           step=step, idmapping_d=idmapping_d)
+        self.target.finalize()
 
     def _merge_sequential(self, collection, geneid_set, step=100000, idmapping_d=None):
         for doc in doc_feeder(self.src[collection], step=step):
@@ -312,6 +425,57 @@ class DataBuilder():
         # Tell child processes to stop
         for i in range(NUMBER_OF_PROCESSES):
             input_queue.put('STOP')
+
+    def _merge_parallel_ipython(self, collection, geneid_set, step=100000, idmapping_d=None):
+        from IPython.parallel import Client, require
+
+        rc = Client()
+        dview = rc[:]
+        #dview = rc.load_balanced_view()
+        dview.block = False
+        target_collection = self.target.target_collection
+        dview['server'] = target_collection.database.connection.host
+        dview['port'] = target_collection.database.connection.port
+        dview['database'] = target_collection.database.name
+        dview['collection_name'] = target_collection.name
+
+
+        def partition(lst, n):
+            q, r = divmod(len(lst), n)
+            indices = [q*i + min(i, r) for i in xrange(n+1)]
+            return [lst[indices[i]:indices[i+1]] for i in xrange(n)]
+
+
+        @require('mongokit', 'time')
+        def worker(doc_li):
+            conn = mongokit.Connection(server, port)
+            target_collection = conn[database][collection_name]
+            print "len(doc_li): {}".format(len(doc_li))
+            t0 = time.time()
+            for doc in doc_li:
+                __id = doc.pop('_id')
+                target_collection.update({'_id': __id}, {'$set': doc},
+                                          manipulate=False,
+                                          upsert=False) #,safe=True)
+            print 'Done. [%.1fs]' % (time.time()-t0)
+
+        for doc in doc_feeder(self.src[collection], step=step):
+            _id = doc['_id']
+            if idmapping_d:
+                _id = idmapping_d.get(_id, None) or _id
+            for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+                __id = str(__id)
+                if __id in geneid_set:
+                    doc['_id'] = __id
+                    self.doc_queue.append(doc)
+
+                    if len(self.doc_queue)>=step:
+                        #dview.scatter('doc_li', self.doc_queue)
+                        #dview.apply_async(worker)
+                        dview.map_async(worker, partition(self.doc_queue, len(rc.ids)))
+                        self.doc_queue = []
+                        print "!",
+
 
     def merge_0(self):
         target_collection = self.target.genedoc
@@ -367,9 +531,46 @@ class DataBuilder():
         es_idxer.build_index(target_collection, verbose=False)
         es_idxer.optimize()
 
+    def test2(self):
+        collection = 'ensembl_acc'
+        step=100000
+        self.load_build_config('mygene')
+        self._load_entrez_geneid_d()
+        self._load_ensembl2entrez_li()
+        self.prepare_target()
+        geneid_set = set(self.target.get_id_list())
+        print len(geneid_set)
+
+        backend = 'couchdb'
+        if backend == 'couchdb':
+            from config import COUCHDB_URL
+            import couchdb
+            self.target = databuild.backend.GeneDocCouchDBBackend(couchdb.Server(COUCHDB_URL))
+        elif backend == 'memory':
+            self.target = databuild.backend.GeneDocMemeoryBackend()
+        self.prepare_target()
+        self.target.prepare()
+
+        id_type = self.src_master[collection].get('id_type', None)
+        flag_need_id_conversion =  id_type is not None
+        if flag_need_id_conversion:
+            idmapping_d = self._idmapping_d_cache.get(id_type, None)
+        else:
+            idmapping_d = None
 
 
-if __name__ == '__main__':
+        for doc in doc_feeder(self.src[collection], step=step): #, s=200000, e=300000):
+            _id = doc['_id']
+            if idmapping_d:
+                _id = idmapping_d.get(_id, None) or _id
+            for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+                __id = str(__id)
+                if __id in geneid_set:
+                    doc.pop('_id', None)
+                    self.target.update(__id, doc)
+
+
+def main():
     t0 = time.time()
     # Build_Config = {
     #     #"name":     "test_parallel_2",
@@ -384,14 +585,32 @@ if __name__ == '__main__':
     # bdr.merge()
     # bdr.build_index()
 
-    freeze_support()
-    bdr = DataBuilder(backend='mongodb')
+    #freeze_support()
+    #bdr = DataBuilder(backend='mongodb')
+    bdr = DataBuilder(backend='couchdb')
+    #bdr = DataBuilder(backend='memory')
     bdr.load_build_config('mygene')
+    #bdr._build_config['sources'] = ['entrez_gene', 'ensembl_gene', 'ensembl_acc']
     #bdr.load_build_config('mygene_allspecies')
     #bdr.prepare_target()
     #bdr.use_parallel = True
-    #bdr.merge()
-    bdr.build_index()
+    bdr.merge()
+    #bdr.build_index()
 
     print "Finished.", timesofar(t0)
+
+def main1():
+    t0 = time.time()
+    bdr = DataBuilder(backend='mongodb')
+    #bdr.load_build_config('mygene')
+    bdr.load_build_config('mygene_allspecies')
+    bdr.using_ipython_cluster = True
+    bdr.shutdown_ipengines_after_done = True
+    bdr.merge()
+    print "Finished.", timesofar(t0)
+
+
+if __name__ == '__main__':
+    main1()
+
 
