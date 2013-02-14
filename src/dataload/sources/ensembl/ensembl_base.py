@@ -6,7 +6,7 @@ from dataload import get_data_folder
 from utils.common import SubStr
 from utils.dataload import (load_start, load_done,
                             tab2dict, tab2list, value_convert, normalized_value,
-                            list2dict, dict_nodup
+                            list2dict, dict_nodup, dict_attrmerge
                             )
 
 #DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/ensembl/69')
@@ -102,7 +102,7 @@ class EnsemblParser:
             ensembl2acc[k] = {'ensembl': _fn(ensembl2acc[k], k)}
 
         load_done('[%d]' % len(ensembl2acc))
-        return ensembl2acc
+        return self.convert2entrez(ensembl2acc)
 
     def load_ensembl2pos(self):
         #Genomic position
@@ -112,7 +112,7 @@ class EnsemblParser:
         ensembl2pos = value_convert(ensembl2pos, lambda x:{'chr': x[2], 'start':int(x[0]), 'end': int(x[1]), 'strand': int(x[3])})
         ensembl2pos = value_convert(ensembl2pos, lambda x: {'genomic_pos': x}, traverse_list=False)
         load_done('[%d]' % len(ensembl2pos))
-        return ensembl2pos
+        return self.convert2entrez(ensembl2pos)
 
     def load_ensembl2prosite(self):
         #Prosite
@@ -121,7 +121,7 @@ class EnsemblParser:
         ensembl2prosite = dict_nodup(tab2dict(DATAFILE, (1,4), 0))
         ensembl2prosite = value_convert(ensembl2prosite, lambda x: {'prosite': x}, traverse_list=False)
         load_done('[%d]' % len(ensembl2prosite))
-        return ensembl2prosite
+        return self.convert2entrez(ensembl2prosite)
 
     def load_ensembl2interpro(self):
         #Interpro
@@ -131,7 +131,7 @@ class EnsemblParser:
         ensembl2interpro = value_convert(ensembl2interpro, lambda x: {'id':x[0],'short_desc':x[1],'desc':x[2]})
         ensembl2interpro = value_convert(ensembl2interpro, lambda x: {'interpro': x}, traverse_list=False)
         load_done('[%d]' % len(ensembl2interpro))
-        return ensembl2interpro
+        return self.convert2entrez(ensembl2interpro)
 
     def convert2entrez(self, ensembl2x):
         '''convert a dict with ensembl gene ids as the keys to matching entrezgene ids as the keys.'''
@@ -161,8 +161,17 @@ class EnsemblParser:
         #add those has no matched entrez geneid, using ensembl id as the key
         for eid in (set(ensembl2x) - set(ensembl2entrez)):
             _g = ensembl2x[eid]
-            _g.update(self.ensembl_main.get(eid, {}))
+            #_g.update(self.ensembl_main.get(eid, {}))
             data[eid] = _g
+
+        doc_li = []
+        for id in data:
+            if type(data[id]) is types.DictType:
+                _doc = dict_nodup(data[id], sort=True)
+            else:
+                #if one entrez gene matches multiple ensembl genes
+                _doc = dict_attrmerge(data[id], removedup=True, sort=True)
+            data[id] = _doc
 
         return data
 

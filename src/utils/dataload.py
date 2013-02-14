@@ -351,7 +351,7 @@ def normalized_value(value, sort=True):
             _v = set(value)
         except TypeError:
             #use alternative way
-            _v = [json.decode(x) for x in set([json.encode(x) for x in value])]
+            _v = [json.loads(x) for x in set([json.dumps(x) for x in value])]
         if sort:
             _v = sorted(_v)
         else:
