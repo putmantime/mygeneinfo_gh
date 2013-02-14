@@ -11,6 +11,7 @@ from utils.dataload import (load_start, load_done,
 
 #DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/ensembl/69')
 DATA_FOLDER = get_data_folder('ensembl')
+print('DATA_FOLDER: ' + DATA_FOLDER)
 
 
 #fn to skip lines with LRG records.'''

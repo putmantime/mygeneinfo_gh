@@ -9,6 +9,7 @@ from utils.dataload import (load_start, load_done,
 
 #DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez/current')
 DATA_FOLDER = get_data_folder('entrez')
+print('DATA_FOLDER: ' + DATA_FOLDER)
 
 class EntrezParserBase(object):
     def __init__(self):

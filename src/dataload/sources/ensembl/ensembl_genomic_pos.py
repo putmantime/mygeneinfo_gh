@@ -4,15 +4,15 @@ from mongokit import OR, IS
 
 __metadata__ = {
     '__collection__' : 'ensembl_genomic_pos',
-    #'structure': {'genomic_pos': None},
-    'structure': {
-                  'genomic_pos': {
-                        "chr": unicode,
-                        "start": OR(int, long),
-                        "end": OR(int, long),
-                        "strand": IS(1, -1),
-                   }
-                 },
+    'structure': {'genomic_pos': None},
+    # 'structure': {
+    #               'genomic_pos': {
+    #                     "chr": unicode,
+    #                     "start": OR(int, long),
+    #                     "end": OR(int, long),
+    #                     "strand": IS(1, -1),
+    #                }
+    #              },
     'id_type': 'ensembl_gene',
 }
 
