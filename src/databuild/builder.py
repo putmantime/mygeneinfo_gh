@@ -1,10 +1,11 @@
 import sys
 import os.path
 import time
+import copy
 from datetime import datetime
 from utils.mongo import (get_src_db, get_target_db, get_src_master,
                          get_src_build, doc_feeder)
-from utils.common import loadobj, timesofar, safewfile, LogPrint
+from utils.common import loadobj, timesofar, safewfile, LogPrint, dump2gridfs
 from utils.dataload import list2dict, alwayslist
 from utils.es import ESIndexer
 import databuild.backend
@@ -127,7 +128,7 @@ class DataBuilder():
         '''call self.update_backend() after validating self._build_config.'''
         if self.target.name == 'mongodb':
             _db = get_target_db()
-            self.target.target_collection = _db['genedoc'+'_'+self._build_config['name'] + '_iptest_3']   #####
+            self.target.target_collection = _db['genedoc'+'_'+self._build_config['name'] + '_iptest_33']   #####
         elif self.target.name == 'es':
             self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
             self.target.target_esidxer._mapping = self.get_mapping()
@@ -163,6 +164,15 @@ class DataBuilder():
         ensembl2entrez = list2dict(ensembl2entrez_li, 0)
         self._idmapping_d_cache['ensembl_gene'] = ensembl2entrez
 
+    def _save_idmapping_gridfs(self):
+        '''saving _idmapping_d_cache into gridfs.'''
+        idmapping_gridfs_d = {}
+        if self._idmapping_d_cache:
+            for id_type in self._idmapping_d_cache:
+                filename = 'tmp_idmapping_d_cache_' + id_type
+                dump2gridfs(self._idmapping_d_cache[id_type], filename, self.src)
+                idmapping_gridfs_d[id_type] = filename
+        return idmapping_gridfs_d
 
     def make_genedoc_root(self):
         if not self._entrez_geneid_d:
@@ -256,80 +266,114 @@ class DataBuilder():
         src_collection_list = [collection for collection in self._build_config['sources']
                                     if collection not in ['entrez_gene', 'ensembl_gene']]
 
-        self._load_entrez_geneid_d()
-        self._load_ensembl2entrez_li()
-        geneid_set = self.target.get_id_list()
-        print len(geneid_set)
+        # self._load_entrez_geneid_d()
+        # self._load_ensembl2entrez_li()
 
-        # self.target.drop()
-        # self.target.prepare()
-        # geneid_set = self.make_genedoc_root()
+        #geneid_set = self.target.get_id_list()
+        #print len(geneid_set)
+
+        self.target.drop()
+        self.target.prepare()
+        geneid_set = self.make_genedoc_root()
+
+        idmapping_gridfs_d = self._save_idmapping_gridfs()
 
         print timesofar(t0)
 
         rc = Client(CLUSTER_CLIENT_JSON)
-        dview = rc[:]
-        print "\t# nodes in use: {}".format(len(dview.targets))
-        print "\tpreparing nodes...",
-        t0 = time.time()
-        dview.block = False
-        dview.clear()
+        lview = rc.load_balanced_view()
+        print "\t# nodes in use: {}".format(len(lview.targets or rc.ids))
+        lview.block = False
+        kwargs = {}
         target_collection = self.target.target_collection
-        dview['server'] = target_collection.database.connection.host
-        #dview['server'] = CLUSTER_MONGODB_SERVER
-        dview['port'] = target_collection.database.connection.port
-        dview['src_db'] = self.src.name
-        dview['database'] = target_collection.database.name
-        dview['collection_name'] = target_collection.name
-        dview['timesofar'] = timesofar
-        dview['doc_feeder'] = doc_feeder
-        dview['alwayslist'] = alwayslist
-        dview['step'] = step
-        dview['src_master'] = self.src_master
-        dview['_idmapping_d_cache'] = self._idmapping_d_cache
-        dview['geneid_set'] = set(geneid_set)
-
-        print 'done. [{}]'.format(timesofar(t0))
+        #kwargs['server'] = target_collection.database.connection.host
+        kwargs['server'] = CLUSTER_MONGODB_SERVER
+        kwargs['port'] = target_collection.database.connection.port
+        kwargs['src_db'] = self.src.name
+        kwargs['target_db'] = target_collection.database.name
+        kwargs['target_collection_name'] = target_collection.name
+        kwargs['limit'] = step
 
         @require('mongokit', 'time', 'types')
-        def worker(args, geneid_set=geneid_set):  #passing geneid_set as keyword parameter is neccessary
-                                                  # to avoid "cannot pickle code objects with closures" error.
-            collection, skip, limit = args
-            #t0 = time.time()
+        def worker(kwargs):
+            server = kwargs['server']
+            port = kwargs['port']
+            src_db = kwargs['src_db']
+            target_db = kwargs['target_db']
+            target_collection_name = kwargs['target_collection_name']
+
+            src_collection = kwargs['src_collection']
+            skip = kwargs['skip']
+            limit = kwargs['limit']
+
+            def load_from_gridfs(filename, db):
+                import gzip
+                import cPickle as pickle
+                import gridfs
+                fs = gridfs.GridFS(db)
+                fobj = fs.get(filename)
+                gzfobj = gzip.GzipFile(fileobj=fobj)
+                try:
+                    buffer = ""
+                    while 1:
+                        data = gzfobj.read()
+                        if data == "":
+                            break
+                        buffer += data
+                    object = pickle.loads(buffer)
+                finally:
+                    gzfobj.close()
+                    fobj.close()
+                return object
+
+            def alwayslist(value):
+                if value is None:
+                    return []
+                if type(value) in (types.ListType, types.TupleType):
+                    return value
+                else:
+                    return [value]
+
             conn = mongokit.Connection(server, port)
             src = conn[src_db]
-            target_collection = conn[database][collection_name]
+            target_collection = conn[target_db][target_collection_name]
 
-            id_type = src_master[collection].get('id_type', None)
-            flag_need_id_conversion =  id_type is not None
-            if flag_need_id_conversion:
-                idmapping_d = _idmapping_d_cache.get(id_type, None)
+            idmapping_gridfs_name = kwargs.get('idmapping_gridfs_name', None)
+            if idmapping_gridfs_name:
+                idmapping_d = load_from_gridfs(idmapping_gridfs_name, src)
             else:
                 idmapping_d = None
-            #geneid_set = set([x['_id'] for x in target_collection.find(fields=[], manipulate=False)])
-            for doc in src[collection].find(skip=skip, limit=limit):
+
+            for doc in src[src_collection].find(skip=skip, limit=limit):
                 _id = doc['_id']
                 if idmapping_d:
                     _id = idmapping_d.get(_id, None) or _id
                 for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
                     __id = str(__id)
-                    if __id in geneid_set:
-                        doc.pop('_id', None)
-                        target_collection.update({'_id': __id}, {'$set': doc},
-                                                  manipulate=False,
-                                                  upsert=False)
+                    doc.pop('_id', None)
+                    target_collection.update({'_id': __id}, {'$set': doc},
+                                              manipulate=False,
+                                              upsert=False)
 
-            #return time.time()-t0
 
         t0 = time.time()
         task_list = []
-        for collection in src_collection_list:
-            cnt = self.src[collection].count()
+        for src_collection in src_collection_list:
+            _kwargs = copy.copy(kwargs)
+            _kwargs['src_collection'] = src_collection
+            id_type = self.src_master[src_collection].get('id_type', None)
+            if id_type:
+                idmapping_gridfs_name = idmapping_gridfs_d[id_type]
+                _kwargs['idmapping_gridfs_name'] = idmapping_gridfs_name
+            cnt = self.src[src_collection].count()
             for s in range(0, cnt, step):
-                task_list.append((collection, s, step))
+                __kwargs = copy.copy(_kwargs)
+                __kwargs['skip'] = s
+                task_list.append(__kwargs)
+
         print "\t# of tasks: {}".format(len(task_list))
         print "\tsubmitting...",
-        job = dview.map_async(worker, task_list)
+        job = lview.map_async(worker, task_list)
         print "done."
         job.wait_interactive()
         print "\t# of results returned: {}".format(len(job.result))
@@ -337,7 +381,7 @@ class DataBuilder():
 
         if self.shutdown_ipengines_after_done:
             print "\tshuting down all ipengine nodes...",
-            dview.shutdown()
+            lview.shutdown()
             print 'Done.'
 
     def _merge_local(self, step=100000, restart_at=0):
