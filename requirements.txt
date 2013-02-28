@@ -7,7 +7,8 @@ mongokit>=0.8.2
 #yajl>=0.3.5
 pyes>=0.19.1
 tornado>=2.4.1
-
+dispatcher>=1.0
+pexpect>=2.4
 #parsing entrez genebank flatfile requires BioPython module, which can be installed via apt-get
 #sudo apt-get install python-biopython
 
