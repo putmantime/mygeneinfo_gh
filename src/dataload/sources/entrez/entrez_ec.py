@@ -1,8 +1,9 @@
+from mongokit import OR
 from entrez_base import Gene2ECParser
 
 __metadata__ = {
     '__collection__' : 'entrez_ec',
-    'structure': {'ec': unicode},
+    'structure': {'ec': OR(unicode, list)},
 }
 
 def load_genedoc(self):

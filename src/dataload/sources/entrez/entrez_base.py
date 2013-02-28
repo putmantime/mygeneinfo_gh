@@ -387,9 +387,11 @@ class Gene2ECParser(EntrezParserBase):
                 geneid, ec = line.strip().split('\t')
                 if ec.find(',') != -1:
                     #there are multiple EC numbers
-                    ec = ec.split(',')
+                    ec = [unicode(x) for x in ec.split(',')]
+                else:
+                    ec = unicode(ec)
                 if geneid not in geneid_set:
-                    doc_li.append(dict(_id=geneid, ec=unicode(ec)))
+                    doc_li.append(dict(_id=geneid, ec=ec))
                     geneid_set.add(geneid)
         load_done('[%d]' % len(doc_li))
 
