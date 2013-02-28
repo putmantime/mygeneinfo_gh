@@ -10,7 +10,7 @@ __metadata__ = {
     #                     "short_desc": unicode,
     #                }
     #              },
-    'id_type': 'ensembl_gene',
+    # 'id_type': 'ensembl_gene',
 }
 
 

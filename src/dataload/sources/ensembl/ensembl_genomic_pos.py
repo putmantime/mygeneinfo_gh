@@ -13,7 +13,7 @@ __metadata__ = {
     #                     "strand": IS(1, -1),
     #                }
     #              },
-    'id_type': 'ensembl_gene',
+    # 'id_type': 'ensembl_gene',
 }
 
 

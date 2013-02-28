@@ -7,7 +7,7 @@ __metadata__ = {
     '__collection__' : 'ensembl_acc',
     'structure': structure,
     'required_fields' : ['ensembl'],
-    'id_type': 'ensembl_gene',
+#    'id_type': 'ensembl_gene',
 }
 
 def load_genedoc(self=None):

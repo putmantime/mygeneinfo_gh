@@ -4,7 +4,7 @@ from mongokit import OR
 __metadata__ = {
     '__collection__' : 'ensembl_prosite',
     'structure': {'prosite': OR(unicode, list)},
-    'id_type': 'ensembl_gene',
+    # 'id_type': 'ensembl_gene',
 }
 
 
