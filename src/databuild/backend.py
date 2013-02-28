@@ -74,16 +74,26 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
         """target_collection is a pymongo collection object."""
         self.target_collection = target_collection
 
-    def insert(self, doc_li):
-        self.target_collection.insert(doc_li, manipulate=False, check_keys=False)
+    def insert(self, doc_li, add_padding=False):
+        # if add_padding:
+        #     for doc in doc_li:
+        #         doc['temp_padding'] = 'a'*1000
+        self.target_collection.insert(doc_li, manipulate=False, check_keys=False,
+                                   w=0)
+        # if add_padding:
+        #    for doc in doc_li:
+        #        self.target_collection.update({'_id': doc['_id']},
+        #                                      {'$unset': {'temp_padding': ''}},
+        #                                      check_keys=False, w=0)
+
 
     def update(self, id, extra_doc):
         '''if id does not exist in the target_collection,
             the update will be ignored.
         '''
         self.target_collection.update({'_id': id}, {'$set': extra_doc},
-                                      manipulate=False,
-                                      upsert=False) #,safe=True)
+                                      manipulate=False, check_keys=False,
+                                      upsert=False, w=0)
 
     def drop(self):
         self.target_collection.drop()
@@ -94,6 +104,16 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
     def get_from_id(self, id):
         return self.target_collection.get_from_id(id)
 
+    def mget_from_ids(self, ids, asiter=False):
+        '''ids is an id list.'''
+        #this does not return doc in the same order of ids
+        #cur = self.target_collection.find('_id': {'$in': ids}})
+        cur = self.target_collection.find({'$or': [{'_id': _id} for _id in ids]})
+        return cur if asiter else list(cur)
+
+    def finalize(self):
+        '''flush all pending writes.'''
+        self.target_collection.connection.fsync(async=True)
 
 class GeneDocESBackend(GeneDocBackendBase):
     name = 'es'
@@ -145,6 +165,14 @@ class GeneDocESBackend(GeneDocBackendBase):
         index_name = self.target_esidxer.ES_INDEX_NAME
         index_type = self.target_esidxer.ES_INDEX_TYPE
         return conn.get(index_name, index_type, id)
+
+    def mget_from_ids(self, ids, asiter=False):
+        '''ids is an id list.'''
+        conn = self.target_esidxer.conn
+        index_name = self.target_esidxer.ES_INDEX_NAME
+        index_type = self.target_esidxer.ES_INDEX_TYPE
+        res = conn.mget(ids, index_name, index_type)
+        return iter(res) if asiter else res
 
 
 class GeneDocCouchDBBackend(GeneDocBackendBase):
