@@ -59,6 +59,7 @@ class DataBuilder():
         self.step = 10000
         self.use_parallel = False
         self.merge_logging = True     #save output into a logging file when merge is called.
+        self.max_build_status = 10    #max no. of records kept in "build" field of src_build collection.
 
         self.using_ipython_cluster = False
         self.shutdown_ipengines_after_done = False
@@ -106,7 +107,9 @@ class DataBuilder():
         '''
         src_build = getattr(self, 'src_build', None)
         if src_build:
-            src_build.update({'_id': self._build_config['_id']}, {"$set": dict})
+            _cfg = src_build.find_one({'_id': self._build_config['_id']})
+            _cfg['build'][-1].update(dict)
+            src_build.update({'_id': self._build_config['_id']}, {"$set": {'build': _cfg['build']}})
 
     def log_building_start(self):
         if self.merge_logging:
@@ -118,17 +121,22 @@ class DataBuilder():
 
         src_build = getattr(self, 'src_build', None)
         if src_build:
-            src_build.update({'_id': self._build_config['_id']}, {"$unset": {"build": ""}})
-            d = {'build.status': 'building',
-                 'build.started_at': datetime.now(),
-                 'build.logfile': logfile}
-            src_build.update({'_id': self._build_config['_id']}, {"$set": d})
+            #src_build.update({'_id': self._build_config['_id']}, {"$unset": {"build": ""}})
+            d = {'status': 'building',
+                 'started_at': datetime.now(),
+                 'logfile': logfile}
+            src_build.update({'_id': self._build_config['_id']}, {"$push": {'build': d}})
+            _cfg = src_build.find_one({'_id': self._build_config['_id']})
+            if len(_cfg['build']) > self.max_build_status:
+                #remove the first build status record
+                src_build.update({'_id': self._build_config['_id']}, {"$pop": {'build': -1}})
+
 
     def prepare_target(self):
         '''call self.update_backend() after validating self._build_config.'''
         if self.target.name == 'mongodb':
             _db = get_target_db()
-            self.target.target_collection = _db['genedoc'+'_'+self._build_config['name'] + '_iptest_33']   #####
+            self.target.target_collection = _db['genedoc'+'_'+self._build_config['name']]
         elif self.target.name == 'es':
             self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
             self.target.target_esidxer._mapping = self.get_mapping()
@@ -220,11 +228,11 @@ class DataBuilder():
 
             geneid_set = set(geneid_set)
             print '# of total Root Gene IDs: %d' % len(geneid_set)
-            self.log_src_build({'build.stats.total_entrez_genes': cnt_total_entrez_genes,
-                                'build.stats.total_ensembl_genes': cnt_total_ensembl_genes,
-                                'build.stats.total_ensembl_genes_mapped_to_entrez': cnt_matching_ensembl_genes,
-                                'build.stats.total_ensembl_only_genes': cnt_ensembl_only_genes,
-                                'build.stats.total_genes': len(geneid_set)
+            self.log_src_build({'stats': {'total_entrez_genes': cnt_total_entrez_genes,
+                                          'total_ensembl_genes': cnt_total_ensembl_genes,
+                                          'total_ensembl_genes_mapped_to_entrez': cnt_matching_ensembl_genes,
+                                          'total_ensembl_only_genes': cnt_ensembl_only_genes,
+                                          'total_genes': len(geneid_set)}
                                })
             return  geneid_set
 
@@ -248,10 +256,10 @@ class DataBuilder():
 
             t1 = round(time.time() - t0, 0)
             t = timesofar(t0)
-            self.log_src_build({'build.status': 'success',
-                                'build.time': t,
-                                'build.time_in_s': t1,
-                                'build.timestamp': datetime.now()})
+            self.log_src_build({'status': 'success',
+                                'time': t,
+                                'time_in_s': t1,
+                                'timestamp': datetime.now()})
 
         finally:
             if self.merge_logging:
@@ -286,8 +294,8 @@ class DataBuilder():
         lview.block = False
         kwargs = {}
         target_collection = self.target.target_collection
-        #kwargs['server'] = target_collection.database.connection.host
-        kwargs['server'] = CLUSTER_MONGODB_SERVER
+        kwargs['server'] = target_collection.database.connection.host
+        #kwargs['server'] = CLUSTER_MONGODB_SERVER
         kwargs['port'] = target_collection.database.connection.port
         kwargs['src_db'] = self.src.name
         kwargs['target_db'] = target_collection.database.name
@@ -344,17 +352,21 @@ class DataBuilder():
             else:
                 idmapping_d = None
 
-            for doc in src[src_collection].find(skip=skip, limit=limit):
-                _id = doc['_id']
-                if idmapping_d:
-                    _id = idmapping_d.get(_id, None) or _id
-                for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
-                    __id = str(__id)
-                    doc.pop('_id', None)
-                    target_collection.update({'_id': __id}, {'$set': doc},
-                                              manipulate=False,
-                                              upsert=False)
-
+            cur = src[src_collection].find(skip=skip, limit=limit, timeout=False)
+            cur.batch_size(1000)
+            try:
+                for doc in cur:
+                    _id = doc['_id']
+                    if idmapping_d:
+                        _id = idmapping_d.get(_id, None) or _id
+                    for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+                        __id = str(__id)
+                        doc.pop('_id', None)
+                        target_collection.update({'_id': __id}, {'$set': doc},
+                                                  manipulate=False,
+                                                  upsert=False)
+            finally:
+                cur.close()
 
         t0 = time.time()
         task_list = []
@@ -562,16 +574,17 @@ class DataBuilder():
         #                      'compress_threshold': '1kb'}
         return mapping
 
-    def build_index(self):
+    def build_index(self, use_parallel=False):
         target_collection = self.target.target_collection
         es_idxer = ESIndexer(self.get_mapping())
         es_idxer.ES_INDEX_NAME = target_collection.name
         es_idxer.step = 10000
-        #es_idxer.use_parallel = True
+        es_idxer.use_parallel = use_parallel
         #es_idxer.s = 609000
+        es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
+        es_idxer.create_index()
         es_idxer.delete_index_type(es_idxer.ES_INDEX_TYPE, noconfirm=True)
         #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
-        es_idxer.create_index()
         es_idxer.build_index(target_collection, verbose=False)
         es_idxer.optimize()
 
@@ -630,15 +643,15 @@ def main():
     # bdr.build_index()
 
     #freeze_support()
-    #bdr = DataBuilder(backend='mongodb')
-    bdr = DataBuilder(backend='couchdb')
+    bdr = DataBuilder(backend='mongodb')
+    #bdr = DataBuilder(backend='couchdb')
     #bdr = DataBuilder(backend='memory')
     bdr.load_build_config('mygene')
     #bdr._build_config['sources'] = ['entrez_gene', 'ensembl_gene', 'ensembl_acc']
-    #bdr.load_build_config('mygene_allspecies')
+    bdr.load_build_config('mygene_allspecies')
     #bdr.prepare_target()
     #bdr.use_parallel = True
-    bdr.merge()
+    #bdr.merge()
     #bdr.build_index()
 
     print "Finished.", timesofar(t0)
@@ -649,12 +662,23 @@ def main1():
     #bdr.load_build_config('mygene')
     bdr.load_build_config('mygene_allspecies')
     bdr.using_ipython_cluster = True
-    bdr.shutdown_ipengines_after_done = True
+    #bdr.shutdown_ipengines_after_done = True
     bdr.merge()
+    bdr.build_index()
+    print "Finished.", timesofar(t0)
+
+def main2():
+    t0 = time.time()
+    bdr = DataBuilder(backend='mongodb')
+    bdr.load_build_config('mygene')
+    #bdr.load_build_config('mygene_allspecies')
+    bdr.using_ipython_cluster = True
+    bdr.prepare_target()
+    bdr.build_index(use_parallel=False)
     print "Finished.", timesofar(t0)
 
 
 if __name__ == '__main__':
-    main1()
+    main2()
 
 
