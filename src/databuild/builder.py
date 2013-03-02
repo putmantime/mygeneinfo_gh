@@ -362,6 +362,7 @@ class DataBuilder():
                     for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
                         __id = str(__id)
                         doc.pop('_id', None)
+                        doc.pop('taxid', None)
                         target_collection.update({'_id': __id}, {'$set': doc},
                                                   manipulate=False,
                                                   upsert=False)
@@ -442,6 +443,7 @@ class DataBuilder():
                 __id = str(__id)
                 if __id in geneid_set:
                     doc.pop('_id', None)
+                    doc.pop('taxid', None)
                     # target_collection.update({'_id': __id}, {'$set': doc},
                     #                           manipulate=False,
                     #                           upsert=False) #,safe=True)
@@ -458,6 +460,7 @@ class DataBuilder():
                 if doc == 'STOP':
                     break
                 __id = doc.pop('_id')
+                doc.pop('taxid', None)
                 target.update(__id, doc)
                 # target_collection.update({'_id': __id}, {'$set': doc},
                 #                           manipulate=False,
@@ -510,6 +513,7 @@ class DataBuilder():
             t0 = time.time()
             for doc in doc_li:
                 __id = doc.pop('_id')
+                doc.pop('taxid', None)
                 target_collection.update({'_id': __id}, {'$set': doc},
                                           manipulate=False,
                                           upsert=False) #,safe=True)
@@ -577,7 +581,7 @@ class DataBuilder():
     def build_index(self, use_parallel=False):
         target_collection = self.target.target_collection
         es_idxer = ESIndexer(self.get_mapping())
-        es_idxer.ES_INDEX_NAME = target_collection.name
+        es_idxer.ES_INDEX_NAME = target_collection.name# + '_iptest'
         es_idxer.step = 10000
         es_idxer.use_parallel = use_parallel
         #es_idxer.s = 609000
@@ -670,8 +674,8 @@ def main1():
 def main2():
     t0 = time.time()
     bdr = DataBuilder(backend='mongodb')
-    bdr.load_build_config('mygene')
-    #bdr.load_build_config('mygene_allspecies')
+    #bdr.load_build_config('mygene')
+    bdr.load_build_config('mygene_allspecies')
     bdr.using_ipython_cluster = True
     bdr.prepare_target()
     bdr.build_index(use_parallel=False)
