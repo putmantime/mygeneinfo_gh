@@ -4,7 +4,7 @@ import time
 import copy
 from datetime import datetime
 from utils.mongo import (get_src_db, get_target_db, get_src_master,
-                         get_src_build, doc_feeder)
+                         get_src_build, get_src_dump, doc_feeder)
 from utils.common import loadobj, timesofar, safewfile, LogPrint, dump2gridfs
 from utils.dataload import list2dict, alwayslist
 from utils.es import ESIndexer
@@ -561,6 +561,24 @@ class DataBuilder():
                 target_collection.save(doc, safe=True)
                 print collection, doc['_id']
 
+    def get_src_version(self):
+        src_dump = get_src_dump(self.src.connection)
+        src_version = {}
+        for src in src_dump.find():
+            version = src.get('release', src.get('timestamp', None))
+            if version:
+                src_version[src['_id']] = version
+        return src_version
+
+    def get_src_build_stats(self):
+        src_build = getattr(self, 'src_build', None)
+        if src_build:
+            _cfg = src_build.find_one({'_id': self._build_config['_id']})
+            if _cfg['build'][-1].get('status', None) == 'success' and \
+               _cfg['build'][-1].get('stats', None):
+                stats = _cfg['build'][-1]['stats']
+                return stats
+
     def get_mapping(self):
         mapping = {}
         src_master = get_src_master(self.src.connection)
@@ -572,25 +590,52 @@ class DataBuilder():
                 print 'Warning: "%s" collection has no mapping data.' % collection
         mapping = {"properties": mapping,
                    "dynamic": False}
-        #allow source compression
+        #allow source Compression
         #Note: no need of source compression due to "Store Level Compression"
         #mapping['_source'] = {'compress': True,}
         #                      'compress_threshold': '1kb'}
+
+        #updating metadata
+        _meta = {}
+        src_version = self.get_src_version()
+        src_build_stats = self.get_src_build_stats()
+        if src_version:
+            _meta['src_version'] = src_version
+        if src_build_stats:
+            _meta['stats'] = src_build_stats
+        if _meta:
+            mapping['_meta'] = _meta
+
         return mapping
 
-    def build_index(self, use_parallel=False):
+    def build_index(self, use_parallel=True):
         target_collection = self.target.target_collection
         es_idxer = ESIndexer(self.get_mapping())
         es_idxer.ES_INDEX_NAME = target_collection.name# + '_iptest'
         es_idxer.step = 10000
         es_idxer.use_parallel = use_parallel
         #es_idxer.s = 609000
-        es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
+        #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
         es_idxer.create_index()
         es_idxer.delete_index_type(es_idxer.ES_INDEX_TYPE, noconfirm=True)
         #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
         es_idxer.build_index(target_collection, verbose=False)
         es_idxer.optimize()
+
+    def sync_index(self, use_parallel=True):
+        from utils import diff
+
+        sync_src = self.target
+
+        es_idxer = ESIndexer(self.get_mapping())
+        es_idxer.ES_INDEX_NAME = sync_src.target_collection.name
+        es_idxer.step = 10000
+        es_idxer.use_parallel = use_parallel
+        sync_target = databuild.backend.GeneDocESBackend(es_idxer)
+
+        changes = diff.diff_collections(sync_src, sync_target)
+        return changes
+
 
     def test2(self):
         collection = 'ensembl_acc'
@@ -668,7 +713,7 @@ def main1():
     bdr.using_ipython_cluster = True
     #bdr.shutdown_ipengines_after_done = True
     bdr.merge()
-    bdr.build_index()
+    bdr.build_index(use_parallel=True)
     print "Finished.", timesofar(t0)
 
 def main2():
@@ -678,11 +723,11 @@ def main2():
     bdr.load_build_config('mygene_allspecies')
     bdr.using_ipython_cluster = True
     bdr.prepare_target()
-    bdr.build_index(use_parallel=False)
+    bdr.build_index(use_parallel=True)
     print "Finished.", timesofar(t0)
 
 
 if __name__ == '__main__':
-    main2()
+    main1()
 
 
