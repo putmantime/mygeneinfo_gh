@@ -7,7 +7,7 @@ import copy
 from IPython.parallel import Client, require
 
 from config import CLUSTER_CLIENT_JSON
-from utils.common import timesofar
+from utils.common import timesofar, ask
 
 def run_jobs_on_ipythoncluster(worker, task_list, shutdown_ipengines_after_done=False):
 
@@ -21,7 +21,17 @@ def run_jobs_on_ipythoncluster(worker, task_list, shutdown_ipengines_after_done=
     print "\tsubmitting...",
     job = lview.map_async(worker, task_list)
     print "done."
-    job.wait_interactive()
+    try:
+        job.wait_interactive()
+    except KeyboardInterrupt:
+        #handle "Ctrl-C"
+        if ask("\nAbort all submitted jobs?") == 'Y':
+            lview.abort()
+            print "Aborted, all submitted jobs are cancelled."
+        else:
+            print "Aborted, but your jobs are still running on the cluster."
+        return
+
     if len(job.result) != len(task_list):
         print "WARNING:\t# of results returned ({}) != # of tasks ({}).".format(len(job.result), len(task_list))
     print "\ttotal time: {}".format(timesofar(t0))
