@@ -5,7 +5,8 @@ import copy
 from datetime import datetime
 from utils.mongo import (get_src_db, get_target_db, get_src_master,
                          get_src_build, get_src_dump, doc_feeder)
-from utils.common import loadobj, timesofar, safewfile, LogPrint, dump2gridfs
+from utils.common import (loadobj, timesofar, safewfile, LogPrint,
+                          dump2gridfs, get_timestamp, get_random_string)
 from utils.dataload import list2dict, alwayslist
 from utils.es import ESIndexer
 import databuild.backend
@@ -125,18 +126,24 @@ class DataBuilder():
             d = {'status': 'building',
                  'started_at': datetime.now(),
                  'logfile': logfile}
+            if self.target.name == 'mongodb':
+                d['target_collection'] = self.target.target_collection.name
             src_build.update({'_id': self._build_config['_id']}, {"$push": {'build': d}})
             _cfg = src_build.find_one({'_id': self._build_config['_id']})
             if len(_cfg['build']) > self.max_build_status:
                 #remove the first build status record
                 src_build.update({'_id': self._build_config['_id']}, {"$pop": {'build': -1}})
 
+    def _get_target_collection_name(self):
+        return 'genedoc_{}_{}_{}'.format(self._build_config['name'],
+                                         get_timestamp(), get_random_string()).lower()
 
     def prepare_target(self):
         '''call self.update_backend() after validating self._build_config.'''
         if self.target.name == 'mongodb':
             _db = get_target_db()
-            self.target.target_collection = _db['genedoc'+'_'+self._build_config['name']]
+            target_collection_name = self._get_target_collection_name()
+            self.target.target_collection = _db[target_collection_name]
         elif self.target.name == 'es':
             self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
             self.target.target_esidxer._mapping = self.get_mapping()
@@ -610,7 +617,7 @@ class DataBuilder():
 
     def build_index(self, use_parallel=True):
         target_collection = self.target.target_collection
-        es_idxer = ESIndexer(self.get_mapping())
+        es_idxer = ESIndexer(mapping=self.get_mapping())
         es_idxer.ES_INDEX_NAME = target_collection.name# + '_iptest'
         es_idxer.step = 10000
         es_idxer.use_parallel = use_parallel
@@ -713,7 +720,7 @@ def main1():
     bdr.using_ipython_cluster = True
     #bdr.shutdown_ipengines_after_done = True
     bdr.merge()
-    bdr.build_index(use_parallel=True)
+    #bdr.build_index(use_parallel=True)
     print "Finished.", timesofar(t0)
 
 def main2():
@@ -725,6 +732,8 @@ def main2():
     bdr.prepare_target()
     bdr.build_index(use_parallel=True)
     print "Finished.", timesofar(t0)
+
+
 
 
 if __name__ == '__main__':
