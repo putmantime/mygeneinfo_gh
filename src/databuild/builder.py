@@ -12,10 +12,6 @@ from utils.es import ESIndexer
 import databuild.backend
 from config import LOG_FOLDER
 
-from multiprocessing import Process, Queue, current_process, freeze_support
-NUMBER_OF_PROCESSES = 8
-
-
 '''
 #Build_Config example
 
@@ -457,6 +453,8 @@ class DataBuilder():
                     self.target.update(__id, doc)
 
     def _merge_parallel(self, collection, geneid_set, step=100000, idmapping_d=None):
+        from multiprocessing import Process, Queue
+        NUMBER_OF_PROCESSES = 8
 
         input_queue = Queue()
         input_queue.conn_pool = []
@@ -543,31 +541,6 @@ class DataBuilder():
                         self.doc_queue = []
                         print "!",
 
-
-    def merge_0(self):
-        target_collection = self.target.genedoc
-        for collection in self.src_collection_list:
-            for doc in self.src[collection].find():
-                _doc = target_collection.get_from_id(doc['_id'])
-                if not _doc:
-                    _doc = doc
-                else:
-                    _doc.update(doc)
-                target_collection.save(_doc, safe=True)
-                print collection, doc['_id']
-
-    def merge1(self, step=10000):
-        target_collection = self.target.genedoc
-        target_collection.drop()
-        for collection in self.src_collection_list:
-            for doc in doc_feeder(self.src[collection], step=step):
-                _doc = target_collection.get_from_id(doc['_id'])
-                if _doc:
-                    _doc.update(doc)
-                    doc = _doc
-                target_collection.save(doc, safe=True)
-                print collection, doc['_id']
-
     def get_src_version(self):
         src_dump = get_src_dump(self.src.connection)
         src_version = {}
@@ -642,45 +615,6 @@ class DataBuilder():
 
         changes = diff.diff_collections(sync_src, sync_target)
         return changes
-
-
-    def test2(self):
-        collection = 'ensembl_acc'
-        step=100000
-        self.load_build_config('mygene')
-        self._load_entrez_geneid_d()
-        self._load_ensembl2entrez_li()
-        self.prepare_target()
-        geneid_set = set(self.target.get_id_list())
-        print len(geneid_set)
-
-        backend = 'couchdb'
-        if backend == 'couchdb':
-            from config import COUCHDB_URL
-            import couchdb
-            self.target = databuild.backend.GeneDocCouchDBBackend(couchdb.Server(COUCHDB_URL))
-        elif backend == 'memory':
-            self.target = databuild.backend.GeneDocMemeoryBackend()
-        self.prepare_target()
-        self.target.prepare()
-
-        id_type = self.src_master[collection].get('id_type', None)
-        flag_need_id_conversion =  id_type is not None
-        if flag_need_id_conversion:
-            idmapping_d = self._idmapping_d_cache.get(id_type, None)
-        else:
-            idmapping_d = None
-
-
-        for doc in doc_feeder(self.src[collection], step=step): #, s=200000, e=300000):
-            _id = doc['_id']
-            if idmapping_d:
-                _id = idmapping_d.get(_id, None) or _id
-            for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
-                __id = str(__id)
-                if __id in geneid_set:
-                    doc.pop('_id', None)
-                    self.target.update(__id, doc)
 
 
 def main():
