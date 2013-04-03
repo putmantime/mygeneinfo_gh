@@ -105,11 +105,20 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
         return self.target_collection.get_from_id(id)
 
     def mget_from_ids(self, ids, asiter=False):
-        '''ids is an id list.'''
+        '''ids is an id list.
+           returned doc list should be in the same order of the
+             input ids. non-existing ids are ignored.
+        '''
         #this does not return doc in the same order of ids
-        #cur = self.target_collection.find('_id': {'$in': ids}})
-        cur = self.target_collection.find({'$or': [{'_id': _id} for _id in ids]})
-        return cur if asiter else list(cur)
+        cur = self.target_collection.find({'_id': {'$in': ids}})
+        _d = dict([(d['_id'], d) for d in cur])
+        doc_li = [_d[_id] for _id in ids if _id in _d]
+        del _d
+        return iter(doc_li) if asiter else doc_li
+
+        ## This following query can perserve the order of ids, but too slow
+        #cur = self.target_collection.find({'$or': [{'_id': _id} for _id in ids]})
+        #return cur if asiter else list(cur)
 
     def finalize(self):
         '''flush all pending writes.'''
