@@ -175,6 +175,7 @@ class ESIndexer(object):
                 "refresh_interval" : "-1",              #disable refresh temporarily
                 "index.store.compress.stored": True,    #store-level compression
                 #"index.store.compress.tv": True,        #store-level compression
+                "auto_expand_replicas": "0-all",
             })
         try:
             print "Building index..."
@@ -183,15 +184,18 @@ class ESIndexer(object):
             else:
                 cnt = self._build_index_sequential(collection, verbose)
         finally:
+            conn = get_es()   #need to reconnect after parallel jobs are done.
+            self.conn = conn
+
+            print conn.flush()
+            print conn.refresh()
             #restore some settings after bulk indexing is done.
             conn.indices.update_settings(index_name,
                 {
                     "refresh_interval" : "1s",              #default settings
                 })
-            print conn.flush()
-            print conn.refresh()
-
-        print 'Done! - {} docs indexed.'.format(cnt)
+        if cnt:
+            print 'Done! - {} docs indexed.'.format(cnt)
 
     def _build_index_sequential(self, collection, verbose=False):
         conn = self.conn
@@ -249,13 +253,15 @@ class ESIndexer(object):
             finally:
                 cur.close()
             es_conn.flush()   #this is important to avoid missing docs
+            es_conn.refresh()
             return cnt
 
         job_results = run_jobs_on_ipythoncluster(worker, task_list)
-        cnt = sum(job_results)
-        return cnt
+        if job_results:
+            cnt = sum(job_results)
+            return cnt
 
-    def get_id_list(self, index_type=None, index_name=None, step=10000):
+    def get_id_list(self, index_type=None, index_name=None, step=100000, verbose=True):
         '''return a list of all doc ids in an index_type.'''
         conn = self.conn
         index_name = index_name or self.ES_INDEX_NAME
@@ -263,13 +269,35 @@ class ESIndexer(object):
 
         id_li = []
         q = MatchAllQuery()
+        if verbose:
+            import time
+            from utils.common import timesofar
+
+            n = self.count()['count']
+            print '\ttotal docs: {}'.format(n)
+            print '\t1-{}...'.format(step),
+            i = step
+            t1 = time.time()
+
         res = conn.search_raw(q, indices=index_name, doc_types=index_type,
                               size=step, scan=True, scroll='5m', fields=[])
         id_li.extend([doc['_id'] for doc in res.hits.hits])
+
+        if verbose:
+            print 'done.[%.1f%%,%s]' % (i*100./n, timesofar(t1))
         while 1:
+            if verbose:
+                t1 = time.time()
+                if i < n:
+                    print '\t{}-{}...'.format(i+1, min(i+step, n)),
             res = conn.search_scroll(res._scroll_id, scroll='5m')
             if len(res.hits.hits) == 0:
                 break
             else:
                 id_li.extend([doc['_id'] for doc in res.hits.hits])
+                if verbose:
+                    i += step
+                    print 'done.[%.1f%%,%s]' % (i*100./n, timesofar(t1))
+
+
         return id_li
