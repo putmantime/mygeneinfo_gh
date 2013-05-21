@@ -74,6 +74,9 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
         """target_collection is a pymongo collection object."""
         self.target_collection = target_collection
 
+    def count(self):
+        return self.target_collection.count()
+
     def insert(self, doc_li, add_padding=False):
         # if add_padding:
         #     for doc in doc_li:
@@ -122,7 +125,7 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
 
     def finalize(self):
         '''flush all pending writes.'''
-        self.target_collection.connection.fsync(async=True)
+        self.target_collection.database.connection.fsync(async=True)
 
 class GeneDocESBackend(GeneDocBackendBase):
     name = 'es'
@@ -133,6 +136,9 @@ class GeneDocESBackend(GeneDocBackendBase):
     def prepare(self, update_mapping=True):
         self.target_esidxer.create_index()
         self.target_esidxer.verify_mapping(update_mapping=update_mapping)
+
+    def count(self):
+        return self.target_esidxer.count()['count']
 
     def insert(self, doc_li):
         conn = self.target_esidxer.conn
