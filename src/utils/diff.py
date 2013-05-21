@@ -2,6 +2,7 @@
 Utils to compare two list of gene documents
 '''
 import time
+import os.path
 from databuild.backend import (GeneDocMongoDBBackend,
                                GeneDocCouchDBBackend)
 from utils.common import timesofar
@@ -41,7 +42,38 @@ def two_docs_iterator(b1, b2, id_list, step = 10000):
     print 'Finished.[total time: %s]' % timesofar(t0)
 
 
-def diff_collections(b1, b2):
+def _diff_doc_worker(args):
+    b1_target_collection, b2_es_index, ids, _path = args
+    import sys
+    if _path not in sys.path:
+        sys.path.append(_path)
+    from databuild import backend
+    from utils.mongo import get_target_db
+    from utils.es import ESIndexer
+    import utils.diff
+    reload(utils.diff)
+    from utils.diff import _diff_doc_inner_worker
+
+    target = get_target_db()
+    b1 = backend.GeneDocMongoDBBackend(target[b1_target_collection])
+    es_idxer = ESIndexer()
+    es_idxer.ES_INDEX_NAME = b2_es_index
+    b2 = backend.GeneDocESBackend(es_idxer)
+    _updates = _diff_doc_inner_worker(b1, b2, ids)
+    return _updates
+
+
+def _diff_doc_inner_worker(b1, b2, ids):
+    _updates = []
+    for doc1, doc2 in two_docs_iterator(b1, b2, ids):
+        assert doc1['_id'] == doc2['_id']
+        _diff = diff_doc(doc1, doc2)
+        if _diff:
+            _diff['_id'] = doc1['_id']
+            _updates.append(_diff)
+    return _updates
+
+def diff_collections(b1, b2, use_parallel=True, step=10000):
     """
     b1, b2 are one of supported backend class in databuild.backend.
     e.g.,
@@ -62,18 +94,26 @@ def diff_collections(b1, b2):
     print "# of docs found in both collections:\t", len(id_common)
 
     print "Comparing matching docs..."
-    _updates = []
     if len(id_common) > 0:
-        # for _id in id_common:
-        #     doc1 = b1.get_from_id(_id)
-        #     doc2 = b2.get_from_id(_id)
-        for doc1, doc2 in two_docs_iterator(b1, b2, list(id_common)):
-            assert doc1['_id'] == doc2['_id']
-            _diff = diff_doc(doc1, doc2)
-            if _diff:
-                _diff['_id'] = _id
-                _updates.append(_diff)
-    print "Done. [{} docs changed]".format(len(_updates))
+        if not use_parallel:
+            _updates = _diff_doc_inner_worker(b1, b2, list(id_common))
+        else:
+            from utils.parallel import run_jobs_on_ipythoncluster
+            _path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
+            id_common = list(id_common)
+            b1_target_collection = b1.target_collection.name
+            b2_es_index = b2.target_esidxer.ES_INDEX_NAME
+            task_li = [(b1_target_collection, b2_es_index, id_common[i:i+step],_path) for i in range(0, len(id_common), step)]
+            job_results = run_jobs_on_ipythoncluster(_diff_doc_worker, task_li)
+            _updates = []
+            if job_results:
+                for res in job_results:
+                    _updates.extend(res)
+            else:
+                print "Parallel jobs failed or were interrupted."
+                return None
+
+        print "Done. [{} docs changed]".format(len(_updates))
 
     _deletes = []
     if len(id_in_1) > 0:
@@ -89,17 +129,15 @@ def diff_collections(b1, b2):
     return changes
 
 
+def worker(args):
+    a, _path = args
+    import sys
+    if _path not in sys.path:
+        sys.path.append(_path)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+    from utils.diff import two_docs_iterator
+    from databuild import backend
+    import utils.diff
+    reload(utils.diff)
+    from utils.diff import _diff_doc_inner_worker
+    return dir(utils.diff)
