@@ -130,7 +130,7 @@ class DataBuilder():
                 #remove the first build status record
                 src_build.update({'_id': self._build_config['_id']}, {"$pop": {'build': -1}})
 
-    def _get_target_collection_name(self):
+    def _get_target_name(self):
         return 'genedoc_{}_{}_{}'.format(self._build_config['name'],
                                          get_timestamp(), get_random_string()).lower()
 
@@ -138,10 +138,11 @@ class DataBuilder():
         '''call self.update_backend() after validating self._build_config.'''
         if self.target.name == 'mongodb':
             _db = get_target_db()
-            target_collection_name = self._get_target_collection_name()
+            target_collection_name = self._get_target_name()
             self.target.target_collection = _db[target_collection_name]
         elif self.target.name == 'es':
-            self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
+            # self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
+            self.target.target_esidxer.ES_INDEX_NAME = self._get_target_name()
             self.target.target_esidxer._mapping = self.get_mapping()
         elif self.target.name == 'couchdb':
             self.target.db_name = 'genedoc'+'_'+self._build_config['name']
@@ -276,12 +277,6 @@ class DataBuilder():
         t0 = time.time()
         src_collection_list = [collection for collection in self._build_config['sources']
                                     if collection not in ['entrez_gene', 'ensembl_gene']]
-
-        # self._load_entrez_geneid_d()
-        # self._load_ensembl2entrez_li()
-
-        #geneid_set = self.target.get_id_list()
-        #print len(geneid_set)
 
         self.target.drop()
         self.target.prepare()
@@ -559,6 +554,43 @@ class DataBuilder():
                 stats = _cfg['build'][-1]['stats']
                 return stats
 
+    def get_target_collection(self):
+        '''get the lastest target_collection from src_build record.'''
+        src_build = getattr(self, 'src_build', None)
+        if src_build:
+            _cfg = src_build.find_one({'_id': self._build_config['_id']})
+            if _cfg['build'][-1].get('status', None) == 'success' and \
+               _cfg['build'][-1].get('target_collection', None):
+                target_collection = _cfg['build'][-1]['target_collection']
+                _db = get_target_db()
+                target_collection = _db[target_collection]
+                return target_collection
+
+    def pick_target_collection(self, autoselect=True):
+        '''print out a list of available target_collection, let user to pick one.'''
+        target_db = get_target_db()
+        target_collection_prefix = 'genedoc_' + self._build_config['name']
+        target_collection_list = [target_db[name] for name in sorted(target_db.collection_names()) if name.startswith(target_collection_prefix)]
+        if target_collection_list:
+            print "Found {} target collections:".format(len(target_collection_list))
+            print '\n'.join(['\t{0:<5}{1.name:<45}\t{2}'.format(str(i+1)+':', target, target.count()) for (i, target) in enumerate(target_collection_list)])
+            print
+            while 1:
+                if autoselect:
+                    selected_idx = raw_input("Pick one above [{}]:".format(len(target_collection_list)))
+                else:
+                    selected_idx = raw_input("Pick one above:")
+                if autoselect:
+                    selected_idx = selected_idx or len(target_collection_list)
+                try:
+                    selected_idx = int(selected_idx)
+                    break
+                except ValueError:
+                    continue
+            return target_collection_list[selected_idx-1]
+        else:
+            print "Found no target collections."
+
     def get_mapping(self):
         mapping = {}
         src_master = get_src_master(self.src.connection)
@@ -589,23 +621,25 @@ class DataBuilder():
         return mapping
 
     def build_index(self, use_parallel=True):
-        target_collection = self.target.target_collection
-        es_idxer = ESIndexer(mapping=self.get_mapping())
-        es_idxer.ES_INDEX_NAME = target_collection.name# + '_iptest'
-        es_idxer.step = 10000
-        es_idxer.use_parallel = use_parallel
-        #es_idxer.s = 609000
-        #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
-        es_idxer.create_index()
-        es_idxer.delete_index_type(es_idxer.ES_INDEX_TYPE, noconfirm=True)
-        #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
-        es_idxer.build_index(target_collection, verbose=False)
-        es_idxer.optimize()
+        target_collection = self.get_target_collection()
+        if target_collection:
+            es_idxer = ESIndexer(mapping=self.get_mapping())
+            es_idxer.ES_INDEX_NAME = 'genedoc_' + self._build_config['name']
+            es_idxer.step = 10000
+            es_idxer.use_parallel = use_parallel
+            #es_idxer.s = 609000
+            #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
+            es_idxer.create_index()
+            es_idxer.delete_index_type(es_idxer.ES_INDEX_TYPE, noconfirm=True)
+            es_idxer.build_index(target_collection, verbose=False)
+            es_idxer.optimize()
+        else:
+            print "Error: target collection is not ready yet or failed to build."
 
     def sync_index(self, use_parallel=True):
         from utils import diff
 
-        sync_src = self.target
+        sync_src = self.get_target_collection()
 
         es_idxer = ESIndexer(self.get_mapping())
         es_idxer.ES_INDEX_NAME = sync_src.target_collection.name
@@ -618,59 +652,21 @@ class DataBuilder():
 
 
 def main():
-    t0 = time.time()
-    # Build_Config = {
-    #     #"name":     "test_parallel_2",
-    #     "name":     "test_mongodb",
-    #     "sources" : ['entrez_gene', 'ensembl_gene', 'ensembl_acc', 'reporter'], # 'uniprot'],
-    #     "gene_root": ['entrez_gene', 'ensembl_gene'],     #either entrez_gene or ensembl_gene or both
-    #     "species": [9606, ]
-    # }
-    # freeze_support()
-    # bdr = DataBuilder(build_config=Build_Config, backend='mongodb')
-    # #bdr.use_parallel = True
-    # bdr.merge()
-    # bdr.build_index()
+    if len(sys.argv) > 1:
+        config = sys.argv[1]
+    else:
+        config = 'mygene_allspecies'
+    use_parallel = '-p' in sys.argv
 
-    #freeze_support()
-    bdr = DataBuilder(backend='mongodb')
-    #bdr = DataBuilder(backend='couchdb')
-    #bdr = DataBuilder(backend='memory')
-    bdr.load_build_config('mygene')
-    #bdr._build_config['sources'] = ['entrez_gene', 'ensembl_gene', 'ensembl_acc']
-    bdr.load_build_config('mygene_allspecies')
-    #bdr.prepare_target()
-    #bdr.use_parallel = True
-    #bdr.merge()
-    #bdr.build_index()
-
-    print "Finished.", timesofar(t0)
-
-def main1():
     t0 = time.time()
     bdr = DataBuilder(backend='mongodb')
-    #bdr.load_build_config('mygene')
-    bdr.load_build_config('mygene_allspecies')
-    bdr.using_ipython_cluster = True
-    #bdr.shutdown_ipengines_after_done = True
+    bdr.load_build_config(config)
+    bdr.using_ipython_cluster = use_parallel
     bdr.merge()
-    #bdr.build_index(use_parallel=True)
     print "Finished.", timesofar(t0)
-
-def main2():
-    t0 = time.time()
-    bdr = DataBuilder(backend='mongodb')
-    #bdr.load_build_config('mygene')
-    bdr.load_build_config('mygene_allspecies')
-    bdr.using_ipython_cluster = True
-    bdr.prepare_target()
-    bdr.build_index(use_parallel=True)
-    print "Finished.", timesofar(t0)
-
-
 
 
 if __name__ == '__main__':
-    main1()
+    main()
 
 
