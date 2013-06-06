@@ -20,14 +20,12 @@ def ask(prompt,options='YN'):
     return s
 
 
-def timesofar(t0, clock=0):
+def timesofar(t0, clock=0, t1=None):
     '''return the string(eg.'3m3.42s') for the passed real time/CPU time so far
        from given t0 (return from t0=time.time() for real time/
        t0=time.clock() for CPU time).'''
-    if clock:
-        t = time.clock() - t0
-    else:
-        t = time.time() - t0
+    t1 = t1 or time.clock() if clock else time.time()
+    t = t1 - t0
     h = int(t / 3600)
     m = int((t % 3600) / 60)
     s = round((t % 3600) % 60, 2)
