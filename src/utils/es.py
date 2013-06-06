@@ -12,6 +12,7 @@ if len(log.handlers) == 0:
 
 from config import ES_HOST, ES_INDEX_NAME, ES_INDEX_TYPE
 from utils.common import ask
+import json
 from utils.mongo import doc_feeder
 
 import sys
@@ -20,7 +21,8 @@ import time
 
 def get_es():
     conn = ES(ES_HOST, default_indices=[ES_INDEX_NAME],
-              timeout=120.0, max_retries=10)
+              bulk_size=10000,
+              timeout=600.0, max_retries=10)
     return conn
 
 
@@ -135,7 +137,7 @@ class ESIndexer(object):
         '''delete a doc from the index based on passed id.'''
         return self.conn.delete(self.ES_INDEX_NAME, index_type, id)
 
-    def update(self, id, extra_doc, index_type=None):
+    def update(self, id, extra_doc, index_type=None, bulk=False):
         '''update an existing doc with extra_doc.'''
         conn = self.conn
         index_name = self.ES_INDEX_NAME
@@ -144,11 +146,23 @@ class ESIndexer(object):
         # return self.conn.update(extra_doc, self.ES_INDEX_NAME,
         #                         index_type, id)
 
-        #using new update api since 0.20
-        path = make_path((index_name, index_type, id, '_update'))
-        body = {'doc': extra_doc}
-        return conn._send_request('POST', path, body=body)
+        if not bulk:
+            #using new update api since 0.20
+            path = make_path((index_name, index_type, id, '_update'))
+            body = {'doc': extra_doc}
+            return conn._send_request('POST', path, body=body)
+        else:
+            # ES supports bulk update since v0.90.1.
+            op_type = 'update'
+            cmd = {op_type: {"_index": index_name,
+                             "_type": index_type,
+                             "_id": id}
+                  }
 
+            doc = json.dumps({"doc": extra_doc}, cls=conn.encoder)
+            command = "%s\n%s" % (json.dumps(cmd, cls=conn.encoder), doc)
+            conn.bulker.add(command)
+            return conn.flush_bulk()
 
     def optimize(self):
         '''optimize the default index.'''

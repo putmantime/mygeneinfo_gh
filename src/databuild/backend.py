@@ -150,7 +150,7 @@ class GeneDocESBackend(GeneDocBackendBase):
         conn.refresh()
 
     def update(self, id, extra_doc):
-        self.target_esidxer.update(id, extra_doc)
+        self.target_esidxer.update(id, extra_doc, bulk=True)
 
     def drop(self):
         from utils.es import IndexMissingException
