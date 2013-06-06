@@ -3,6 +3,7 @@ import os.path
 import time
 import copy
 from datetime import datetime
+from pprint import pprint
 from utils.mongo import (get_src_db, get_target_db, get_src_master,
                          get_src_build, get_src_dump, doc_feeder)
 from utils.common import (loadobj, timesofar, safewfile, LogPrint,
@@ -121,9 +122,13 @@ class DataBuilder():
             #src_build.update({'_id': self._build_config['_id']}, {"$unset": {"build": ""}})
             d = {'status': 'building',
                  'started_at': datetime.now(),
-                 'logfile': logfile}
+                 'logfile': logfile,
+                 'target_backend': self.target.name}
             if self.target.name == 'mongodb':
-                d['target_collection'] = self.target.target_collection.name
+                d['target'] = self.target.target_collection.name
+            elif self.target.name == 'es':
+                d['target'] = self.target.target_esidxer.ES_INDEX_NAME
+            pprint(d)
             src_build.update({'_id': self._build_config['_id']}, {"$push": {'build': d}})
             _cfg = src_build.find_one({'_id': self._build_config['_id']})
             if len(_cfg['build']) > self.max_build_status:
