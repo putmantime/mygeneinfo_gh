@@ -167,12 +167,12 @@ class ESIndexer(object):
     def optimize(self):
         '''optimize the default index.'''
         return self.conn.indices.optimize(self.ES_INDEX_NAME,
-                                          wait_for_merge=True,
+                                          wait_for_merge=False, # True,
                                           max_num_segments=5)
 
     def optimize_all(self):
         """optimize all indices"""
-        return self.conn.indices.optimize([], wait_for_merge=True,
+        return self.conn.indices.optimize([], wait_for_merge=False, #True,
                                               max_num_segments=5)
 
     def get_field_mapping(self):
