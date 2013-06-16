@@ -237,12 +237,13 @@ class DataBuilder():
 
             geneid_set = set(geneid_set)
             print '# of total Root Gene IDs: %d' % len(geneid_set)
-            self.log_src_build({'stats': {'total_entrez_genes': cnt_total_entrez_genes,
-                                          'total_ensembl_genes': cnt_total_ensembl_genes,
-                                          'total_ensembl_genes_mapped_to_entrez': cnt_matching_ensembl_genes,
-                                          'total_ensembl_only_genes': cnt_ensembl_only_genes,
-                                          'total_genes': len(geneid_set)}
-                               })
+            _stats = {'total_entrez_genes': cnt_total_entrez_genes,
+                      'total_ensembl_genes': cnt_total_ensembl_genes,
+                      'total_ensembl_genes_mapped_to_entrez': cnt_matching_ensembl_genes,
+                      'total_ensembl_only_genes': cnt_ensembl_only_genes,
+                      'total_genes': len(geneid_set)}
+            self._stats = _stats
+            self.log_src_build({'stats': _stats})
             return  geneid_set
 
     def get_idmapping_d(self, src):
@@ -271,6 +272,15 @@ class DataBuilder():
                                 'timestamp': datetime.now()})
 
         finally:
+            #do a simple validation here
+            if hasattr(self, '_stats', None):
+                print "Validating..."
+                target_cnt = self.target.count()
+                if target_cnt == self._stats['total_genes']:
+                    print "OK [total count={}]".format(target_cnt)
+                else:
+                    print "Warning: total count of gene documents does not match [{}, should be {}]".format(target_cnt, self._stats['total_genes']) 
+
             if self.merge_logging:
                 sys.stdout.close()
 
