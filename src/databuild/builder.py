@@ -266,6 +266,10 @@ class DataBuilder():
             else:
                 self._merge_local(step=step, restart_at=restart_at)
 
+            if self.target.name == 'es':
+                print "Updating metadata...",
+                self.update_mapping_meta()
+
             t1 = round(time.time() - t0, 0)
             t = timesofar(t0)
             self.log_src_build({'status': 'success',
@@ -562,7 +566,7 @@ class DataBuilder():
                 src_version[src['_id']] = version
         return src_version
 
-    def get_src_build_stats(self):
+    def get_last_src_build_stats(self):
         src_build = getattr(self, 'src_build', None)
         if src_build:
             _cfg = src_build.find_one({'_id': self._build_config['_id']})
@@ -609,6 +613,9 @@ class DataBuilder():
             print "Found no target collections."
 
     def get_mapping(self):
+        '''collect mapping data from data sources.
+           This is for GeneDocESBackend only.
+        '''
         mapping = {}
         src_master = get_src_master(self.src.connection)
         for collection in self._build_config['sources']:
@@ -627,7 +634,7 @@ class DataBuilder():
         #updating metadata
         _meta = {}
         src_version = self.get_src_version()
-        src_build_stats = self.get_src_build_stats()
+        src_build_stats = self.get_last_src_build_stats()
         if src_version:
             _meta['src_version'] = src_version
         if src_build_stats:
@@ -636,6 +643,21 @@ class DataBuilder():
             mapping['_meta'] = _meta
 
         return mapping
+
+    def update_mapping_meta(self):
+        '''updating _meta field of ES mapping data, including index stats, versions.
+           This is for GeneDocESBackend only.
+        '''
+        _meta = {}
+        src_version = self.get_src_version()
+        if src_version:
+            _meta['src_version'] = src_version
+        if getattr(self, '_stats', None):
+            _meta['stats'] = self._stats
+
+        if _meta:
+            mapping['_meta'] = _meta
+            self.target.target_esidxer.update_mapping_meta(_meta)
 
     def build_index(self, use_parallel=True):
         target_collection = self.get_target_collection()

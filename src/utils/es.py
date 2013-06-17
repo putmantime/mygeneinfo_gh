@@ -114,6 +114,16 @@ class ESIndexer(object):
             print conn.put_mapping(index_type,
                                    _mapping,
                                    [index_name])
+
+    def update_mapping_meta(self, meta):
+        index_name = self.ES_INDEX_NAME
+        index_type = self.ES_INDEX_TYPE
+
+        if isinstance(meta, dict) and meta.keys() == ['_meta']:
+            print self.conn.put_mapping(index_type, meta, [index_name])
+        else:
+            raise ValueError('Input "meta" should have and only have "_meta" field.')
+
     def count(self, query=None, index_type=None):
         conn = self.conn
         index_name = self.ES_INDEX_NAME
