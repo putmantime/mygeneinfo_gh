@@ -201,6 +201,8 @@ class DataBuilder():
 
         if "species" in self._build_config:
             _query = {'taxid': {'$in': self._build_config['species']}}
+        elif "species_to_exclude" in self._build_config:
+            _query = {'taxid': {'$nin': self._build_config['species_to_exclude']}}
         else:
             _query = None
 
@@ -273,13 +275,13 @@ class DataBuilder():
 
         finally:
             #do a simple validation here
-            if hasattr(self, '_stats', None):
+            if getattr(self, '_stats', None):
                 print "Validating..."
                 target_cnt = self.target.count()
                 if target_cnt == self._stats['total_genes']:
                     print "OK [total count={}]".format(target_cnt)
                 else:
-                    print "Warning: total count of gene documents does not match [{}, should be {}]".format(target_cnt, self._stats['total_genes']) 
+                    print "Warning: total count of gene documents does not match [{}, should be {}]".format(target_cnt, self._stats['total_genes'])
 
             if self.merge_logging:
                 sys.stdout.close()
