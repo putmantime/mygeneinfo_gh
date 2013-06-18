@@ -631,16 +631,16 @@ class DataBuilder():
         #mapping['_source'] = {'compress': True,}
         #                      'compress_threshold': '1kb'}
 
-        #updating metadata
-        _meta = {}
-        src_version = self.get_src_version()
-        src_build_stats = self.get_last_src_build_stats()
-        if src_version:
-            _meta['src_version'] = src_version
-        if src_build_stats:
-            _meta['stats'] = src_build_stats
-        if _meta:
-            mapping['_meta'] = _meta
+        # #updating metadata
+        # _meta = {}
+        # src_version = self.get_src_version()
+        # src_build_stats = self.get_last_src_build_stats()
+        # if src_version:
+        #     _meta['src_version'] = src_version
+        # if src_build_stats:
+        #     _meta['stats'] = src_build_stats
+        # if _meta:
+        #     mapping['_meta'] = _meta
 
         return mapping
 
@@ -656,8 +656,7 @@ class DataBuilder():
             _meta['stats'] = self._stats
 
         if _meta:
-            mapping['_meta'] = _meta
-            self.target.target_esidxer.update_mapping_meta(_meta)
+            self.target.target_esidxer.update_mapping_meta({'_meta': _meta})
 
     def build_index(self, use_parallel=True):
         target_collection = self.get_target_collection()
