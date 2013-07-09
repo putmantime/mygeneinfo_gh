@@ -2,9 +2,10 @@ import sys
 import os.path
 import time
 from datetime import datetime
-import base64
+import base64, random, string
 import os
 import types
+
 
 
 #===============================================================================
@@ -43,7 +44,7 @@ def get_timestamp():
 
 
 def get_random_string():
-    return base64.urlsafe_b64encode(os.urandom(6))
+    return base64.b64encode(os.urandom(6), random.sample(string.letters, 2))
 
 
 class LogPrint:
