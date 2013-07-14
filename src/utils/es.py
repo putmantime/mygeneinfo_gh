@@ -62,7 +62,7 @@ class ESIndexer(object):
             print self.conn.open_index(self.ES_INDEX_NAME)
         except IndexMissingException:
             print self.conn.create_index(self.ES_INDEX_NAME, settings={
-                        "number_of_shards" : number_of_shards
+                        "number_of_shards" : self.number_of_shards
                     })
 
     def delete_index_type(self, index_type, noconfirm=False):
