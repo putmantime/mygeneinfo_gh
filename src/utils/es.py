@@ -44,6 +44,7 @@ class ESIndexer(object):
         self.ES_INDEX_NAME = es_index_name or ES_INDEX_NAME
         self.ES_INDEX_TYPE = es_index_type or ES_INDEX_TYPE
         self.step = 10000
+        self.number_of_shards = 5      #set number_of_shards when create_index
         self.s = None     #optionally, can specify number of records to skip,
                           #useful to continue indexing after an error.
         self.use_parallel = False
@@ -60,7 +61,9 @@ class ESIndexer(object):
         try:
             print self.conn.open_index(self.ES_INDEX_NAME)
         except IndexMissingException:
-            print self.conn.create_index(self.ES_INDEX_NAME)
+            print self.conn.create_index(self.ES_INDEX_NAME, settings={
+                        "number_of_shards" : number_of_shards
+                    })
 
     def delete_index_type(self, index_type, noconfirm=False):
         '''Delete all indexes for a given index_type.'''

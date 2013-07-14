@@ -14,6 +14,7 @@ def main():
     bdr = DataBuilder(backend='es')
     bdr.load_build_config(config)
     #bdr.using_ipython_cluster = use_parallel
+    #bdr.target.target_esidxer.number_of_shards = 10   #default 5
     bdr.merge(step=10000)
     print "Finished.", timesofar(t0)
 
