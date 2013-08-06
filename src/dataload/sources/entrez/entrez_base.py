@@ -311,7 +311,7 @@ class Gene2GOParser(EntrezParserBase):
 
     def load(self, aslist=False):
         load_start(self.datafile)
-        gene2go = tab2dict(self.datafile, (1,2,5,7), 0, alwayslist=1,
+        gene2go = tab2dict(self.datafile, (1,2,3,4,5,6,7), 0, alwayslist=1,
                            includefn=self.species_filter)
         category_d = {'Function': 'MF',
                       'Process':  'BP',
@@ -319,10 +319,25 @@ class Gene2GOParser(EntrezParserBase):
 
         def _ff(d):
             out = {}
-            for goid, goterm, gocategory in d:
+            for goid, evidence, qualifier, goterm, pubmed, gocategory in d:
                 _gocategory = category_d[gocategory]
                 _d = out.get(_gocategory, [])
-                _d.append(dict(id=goid, term=goterm))
+                _rec = dict(id=goid, term=goterm)
+                if evidence != '-':
+                    _rec['evidence'] = evidence
+                if qualifier != '-':
+                    #here I also fixing some inconsistency issues in NCBI data
+                    #Colocalizes_with -> colocalizes_with
+                    #Contributes_with -> contributes_with
+                    #Not -> NOT
+                    _rec['qualifier'] = qualifier.replace('Co', 'co').replace('Not', 'NOT')
+                if pubmed != '-':
+                    if pubmed.find('|') != -1:
+                        pubmed = [int(pid) for pid in pubmed.split('|')]
+                    else:
+                        pubmed = int(pubmed)
+                    _rec['pubmed'] = pubmed
+                _d.append(_rec)
                 out[_gocategory] = _d
             for k in out:
                 if len(out[k]) == 1:

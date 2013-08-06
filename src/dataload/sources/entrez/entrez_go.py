@@ -6,13 +6,13 @@ __metadata__ = {
     'structure': {'go': None}
 }
 
-def load_genedoc(self):
+def load_genedoc(self=None):
     parser = Gene2GOParser()
     parser.set_all_species()
     gene2go = parser.load()
     return gene2go
 
-def get_mapping(self):
+def get_mapping(self=None):
     mapping = {
         "go":       {"dynamic": False,
                      "path": "just_name",
