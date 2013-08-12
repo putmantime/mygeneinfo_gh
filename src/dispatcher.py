@@ -13,6 +13,10 @@ source_upload_failed = dispatch.Signal(providing_args=["src_name"])
 genedoc_merged = dispatch.Signal()
 es_indexed = dispatch.Signal()
 
+try:
+    from utils.common import hipchat_msg
+except:
+    hipchat_msg = None
 
 class GeneDocDispatcher:
     running_processes_upload = {}
@@ -56,12 +60,18 @@ class GeneDocDispatcher:
                      'upload.logfile': p.logfile,
                      }
                 if returncode == 0:
-                    print 'Dispatcher:  {} finished successfully with code {} (time: {}s)'.format(src, returncode, t1)
+                    msg = 'Dispatcher:  "{}" uploader finished successfully with code {} (time: {}s)'.format(src, returncode, t1)
+                    print msg
                     d['upload.status'] = "success"
+                    if hipchat_msg:
+                        hipchat_msg(msg)
                     source_upload_success.send(self, src_name = src)
                 else:
-                    print 'Dispatcher:  {} failed with code {} (time: {}s)'.format(src, returncode, t1)
+                    msg = 'Dispatcher:  "{}" uploader failed with code {} (time: {}s)'.format(src, returncode, t1)
+                    print msg
                     d['upload.status'] = "failed"
+                    if hipchat_msg:
+                        hipchat_msg(msg)
                     source_upload_failed.send(self, src_name = src)
 
                 mark_upload_done(src, d)

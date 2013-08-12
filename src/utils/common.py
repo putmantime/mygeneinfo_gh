@@ -243,3 +243,27 @@ def newer(t0, t1, format='%Y%m%d'):
     '''
     return datetime.strptime(t0, format) < datetime.strptime(t1, format)
 
+
+def hipchat_msg(msg):
+    import httplib2
+    from config import HIPCHAT_CONFIG
+
+    h = httplib2.Http()
+    url = 'https://api.hipchat.com/v1/rooms/message?format=json&auth_token=' + HIPCHAT_CONFIG['token']
+    headers = {'content-type': 'application/x-www-form-urlencoded'}
+    color = 'yellow'
+    _msg = msg.lower()
+    for keyword in ['fail', 'error']:
+        if _msg.find(keyword) != -1:
+            color = 'red'
+            break
+    params = 'room_id={}&from={}&message={}&color={}'.format(HIPCHAT_CONFIG['roomid'],
+                                                   HIPCHAT_CONFIG['from'],
+                                                   msg,
+                                                   color)
+    res, con = h.request(url, 'POST', params, headers=headers)
+    assert res.status == 200, str(res)
+
+
+
+
