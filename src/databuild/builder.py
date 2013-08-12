@@ -697,6 +697,55 @@ class DataBuilder():
         if _meta:
             self.target.target_esidxer.update_mapping_meta({'_meta': _meta})
 
+    def validate(self, build_config='mygene_allspecies', n=10):
+        '''Validate merged genedoc, currently for ES backend only.'''
+        import random, itertools, pyes
+        from pprint import pprint
+
+        self.load_build_config(build_config)
+        last_build = self._build_config['build'][-1]
+        print "Last build record:"
+        pprint(last_build)
+        assert last_build['target_backend'] == 'es', '"validate" currently works for "es" backend only'
+
+        target_name = last_build['target']
+        self.validate_src_collections()
+        self.prepare_target(target_name=target_name)
+        print "Validating..."
+        target_cnt = self.target.count()
+        stats_cnt = last_build['stats']['total_genes']
+        if target_cnt == stats_cnt:
+            print "OK [total count={}]".format(target_cnt)
+        else:
+            print "Warning: total count of gene documents does not match [{}, should be {}]".format(target_cnt, stats_cnt)
+
+        for src in self._build_config['sources']:
+            print "\nSrc:", src
+            # if 'id_type' in self.src_master[src] and self.src_master[src]['id_type'] != 'entrez_gene':
+            #     print "skipped."
+            #     continue
+            cnt = self.src[src].count()
+            fdr1 = doc_feeder(self.src[src], step=10000, s=cnt-n)
+            rand_s = random.randint(0, cnt-n)
+            fdr2 = doc_feeder(self.src[src], step=10000, s=rand_s, e=rand_s+n)
+            _first_exception = True
+            for doc in itertools.chain(fdr1, fdr2):
+                _id = doc['_id']
+                try:
+                    es_doc = self.target.get_from_id(_id)
+                except pyes.exceptions.NotFoundException:
+                    if _first_exception:
+                        print
+                        _first_exception = False
+                    print _id, 'not found.'
+                    continue
+                for k in doc:
+                    if src == 'entrez_homologene' and k == 'taxid':
+                        # there is occasionally known error for taxid in homologene data.
+                        continue
+                    assert es_doc.get(k, None) == doc[k], (_id, k, es_doc.get(k, None), doc[k])
+
+
     def build_index(self, use_parallel=True):
         target_collection = self.get_target_collection()
         if target_collection:
