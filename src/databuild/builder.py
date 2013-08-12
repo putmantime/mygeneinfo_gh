@@ -6,7 +6,7 @@ from datetime import datetime
 from pprint import pprint
 from utils.mongo import (get_src_db, get_target_db, get_src_master,
                          get_src_build, get_src_dump, doc_feeder)
-from utils.common import (loadobj, timesofar, safewfile, LogPrint,
+from utils.common import (loadobj, timesofar, safewfile, LogPrint, ask,
                           dump2gridfs, get_timestamp, get_random_string)
 from utils.dataload import list2dict, alwayslist
 from utils.es import ESIndexer
@@ -139,20 +139,20 @@ class DataBuilder():
         return 'genedoc_{}_{}_{}'.format(self._build_config['name'],
                                          get_timestamp(), get_random_string()).lower()
 
-    def prepare_target(self):
+    def prepare_target(self, target_name=None):
         '''call self.update_backend() after validating self._build_config.'''
         if self.target.name == 'mongodb':
             _db = get_target_db()
-            target_collection_name = self._get_target_name()
+            target_collection_name = target_name or self._get_target_name()
             self.target.target_collection = _db[target_collection_name]
         elif self.target.name == 'es':
             # self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
-            self.target.target_esidxer.ES_INDEX_NAME = self._get_target_name()
+            self.target.target_esidxer.ES_INDEX_NAME = target_name or self._get_target_name()
             self.target.target_esidxer._mapping = self.get_mapping()
         elif self.target.name == 'couchdb':
-            self.target.db_name = 'genedoc'+'_'+self._build_config['name']
+            self.target.db_name = target_name or ('genedoc'+'_'+self._build_config['name'])
         elif self.target.name == 'memory':
-            self.target.target_name = 'genedoc'+'_'+self._build_config['name']
+            self.target.target_name = target_name or ('genedoc'+'_'+self._build_config['name'])
 
     def get_src_master(self):
         src_master = get_src_master(self.src.connection)
@@ -289,6 +289,45 @@ class DataBuilder():
 
             if self.merge_logging:
                 sys.stdout.close()
+
+    def merge_resume(self, build_config, at_collection, step=10000):
+        '''resume a merging process after a failure.
+             .merge_resume('mygene_allspecies', 'reporter')
+        '''
+        from pprint import pprint
+        assert not self.using_ipython_cluster, "Abort. Can only resume merging in non-parallel mode."
+        self.load_build_config(build_config)
+        last_build = self._build_config['build'][-1]
+        print "Last build record:"
+        pprint(last_build)
+        assert last_build['status'] == 'building', \
+               "Abort. Last build does not need to be resumed."
+        assert at_collection in self._build_config['sources'], \
+               'Abort. Cannot resume merging from a unknown collection "{}"'.format(at_collection)
+        assert last_build['backend'] == self.target.name, \
+               'Abort. Re-initialized DataBuilder class using matching backend "{}"'.format(last_build['backend'])
+        assert last_build.get('stats', None), \
+               'Abort. Intital build stats are not available. You should restart the build from the scratch.'
+        self._stats = last_build['stats']
+
+        if ask('Continue to resume merging from "{}"?'.format(at_collection)) == 'Y':
+            #TODO: resume logging
+            target_name = last_build['target']
+            self.validate_src_collections()
+            self.prepare_target(target_name=target_name)
+            src_cnt = 0
+            for collection in self._build_config['sources']:
+                if collection in ['entrez_gene', 'ensembl_gene']:
+                    continue
+                src_cnt += 1
+                if collection == at_collection:
+                    break
+            self._merge_local(step=step, restart_at=src_cnt)
+            if self.target.name == 'es':
+                print "Updating metadata...",
+                self.update_mapping_meta()
+            self.log_src_build({'status': 'success',
+                                'timestamp': datetime.now()})
 
     def _merge_ipython_cluster(self, step=100000):
         '''Do the merging on ipython cluster.'''
