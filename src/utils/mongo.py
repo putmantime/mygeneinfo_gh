@@ -81,7 +81,7 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
         if e:
             cur.limit(e - (s or 0))
         cur.batch_size(step)
-        print "Processing %d-%d documents..." % (cnt+1, min(cnt+step, n)) ,
+        print "Processing %d-%d documents..." % (cnt+1, min(cnt+step, e)) ,
         for doc in cur:
             if inbatch:
                 doc_li.append(doc)
@@ -93,8 +93,9 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
                     yield doc_li
                     doc_li = []
                 print 'Done.[%.1f%%,%s]' % (cnt*100./n, timesofar(t1))
-                t1 = time.time()
-                print "Processing %d-%d documents..." % (cnt+1, min(cnt+step, n)) ,
+                if cnt < e:
+                    t1 = time.time()
+                    print "Processing %d-%d documents..." % (cnt+1, min(cnt+step, e)) ,
         if inbatch and doc_li:
             #Important: need to yield the last batch here
             yield doc_li

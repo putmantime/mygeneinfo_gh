@@ -727,7 +727,7 @@ class DataBuilder():
             cnt = self.src[src].count()
             fdr1 = doc_feeder(self.src[src], step=10000, s=cnt-n)
             rand_s = random.randint(0, cnt-n)
-            fdr2 = doc_feeder(self.src[src], step=10000, s=rand_s, e=rand_s+n)
+            fdr2 = doc_feeder(self.src[src], step=n, s=rand_s, e=rand_s+n)
             _first_exception = True
             for doc in itertools.chain(fdr1, fdr2):
                 _id = doc['_id']
