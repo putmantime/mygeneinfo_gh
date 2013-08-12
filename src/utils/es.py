@@ -22,7 +22,7 @@ import time
 def get_es():
     conn = ES(ES_HOST, default_indices=[ES_INDEX_NAME],
               bulk_size=10000,
-              timeout=600.0, max_retries=10)
+              timeout=6000.0, max_retries=100)
     return conn
 
 
