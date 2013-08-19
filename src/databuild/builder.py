@@ -304,7 +304,7 @@ class DataBuilder():
                "Abort. Last build does not need to be resumed."
         assert at_collection in self._build_config['sources'], \
                'Abort. Cannot resume merging from a unknown collection "{}"'.format(at_collection)
-        assert last_build['backend'] == self.target.name, \
+        assert last_build['target_backend'] == self.target.name, \
                'Abort. Re-initialized DataBuilder class using matching backend "{}"'.format(last_build['backend'])
         assert last_build.get('stats', None), \
                'Abort. Intital build stats are not available. You should restart the build from the scratch.'
@@ -620,8 +620,8 @@ class DataBuilder():
         if src_build:
             _cfg = src_build.find_one({'_id': self._build_config['_id']})
             if _cfg['build'][-1].get('status', None) == 'success' and \
-               _cfg['build'][-1].get('target_collection', None):
-                target_collection = _cfg['build'][-1]['target_collection']
+               _cfg['build'][-1].get('target', None):
+                target_collection = _cfg['build'][-1]['target']
                 _db = get_target_db()
                 target_collection = _db[target_collection]
                 return target_collection
@@ -761,6 +761,50 @@ class DataBuilder():
             es_idxer.optimize()
         else:
             print "Error: target collection is not ready yet or failed to build."
+
+    def build_index2(self, build_config='mygene_allspecies'):
+        """Build ES index from last successfully-merged mongodb collection."""
+        from pprint import pprint
+        self.load_build_config(build_config)
+        last_build = self._build_config['build'][-1]
+        print "Last build record:"
+        pprint(last_build)
+        assert last_build['status'] == 'success', \
+               "Abort. Last build did not success."
+        assert last_build['target_backend'] == "mongodb", \
+               'Abort. Last build need to be built using "mongodb" backend.'
+        assert last_build.get('stats', None), \
+               'Abort. Last build stats are not available.'
+        self._stats = last_build['stats']
+        assert last_build.get('target', None), \
+                'Abort. Last build target_collection is not available.'
+        target_collection = last_build['target']
+        _db = get_target_db()
+        target_collection = _db[target_collection]
+        print
+        print 'Source: ', target_collection.name
+        _mapping = self.get_mapping()
+        _meta = {}
+        src_version = self.get_src_version()
+        if src_version:
+            _meta['src_version'] = src_version
+        if getattr(self, '_stats', None):
+            _meta['stats'] = self._stats
+        if _meta:
+            _mapping['_meta'] = _meta
+
+        es_idxer = ESIndexer(mapping=_mapping,
+                             es_index_name=target_collection.name)
+        es_idxer.step = 10000
+        print "ES host:", es_idxer.conn.connection._get_server()
+        if ask("Continue to build ES index?") == 'Y':
+            #es_idxer.use_parallel = use_parallel
+            #es_idxer.s = 609000
+            #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
+            es_idxer.create_index()
+            #es_idxer.delete_index_type(es_idxer.ES_INDEX_es.pTYPE, noconfirm=True)
+            es_idxer.build_index(target_collection, verbose=False)
+            es_idxer.optimize()
 
     def sync_index(self, use_parallel=True):
         from utils import diff
