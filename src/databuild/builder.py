@@ -207,13 +207,17 @@ class DataBuilder():
             _query = None
 
         geneid_set = []
+        species_set = set()
         if "entrez_gene" in self._build_config['gene_root']:
             for doc_li in doc_feeder(self.src['entrez_gene'], inbatch=True,  step=self.step, query=_query):
                 #target_collection.insert(doc_li, manipulate=False, check_keys=False)
                 self.target.insert(doc_li)
                 geneid_set.extend([doc['_id'] for doc in doc_li])
+                species_set |= set([doc['taxid'] for doc in doc_li])
             cnt_total_entrez_genes = len(geneid_set)
+            cnt_total_species = len(species_set)
             print '# of entrez Gene IDs in total: %d' % cnt_total_entrez_genes
+            print '# of species in total: %d' % cnt_total_species
 
         if "ensembl_gene" in self._build_config['gene_root']:
             cnt_ensembl_only_genes = 0
@@ -240,6 +244,7 @@ class DataBuilder():
             geneid_set = set(geneid_set)
             print '# of total Root Gene IDs: %d' % len(geneid_set)
             _stats = {'total_entrez_genes': cnt_total_entrez_genes,
+                      'total_species': cnt_total_species,
                       'total_ensembl_genes': cnt_total_ensembl_genes,
                       'total_ensembl_genes_mapped_to_entrez': cnt_matching_ensembl_genes,
                       'total_ensembl_only_genes': cnt_ensembl_only_genes,
@@ -706,7 +711,7 @@ class DataBuilder():
         last_build = self._build_config['build'][-1]
         print "Last build record:"
         pprint(last_build)
-        assert last_build['target_backend'] == 'es', '"validate" currently works for "es" backend only'
+        #assert last_build['target_backend'] == 'es', '"validate" currently works for "es" backend only'
 
         target_name = last_build['target']
         self.validate_src_collections()
@@ -762,11 +767,11 @@ class DataBuilder():
         else:
             print "Error: target collection is not ready yet or failed to build."
 
-    def build_index2(self, build_config='mygene_allspecies'):
+    def build_index2(self, build_config='mygene_allspecies', last_build_idx=-1, use_parallel=False):
         """Build ES index from last successfully-merged mongodb collection."""
         from pprint import pprint
         self.load_build_config(build_config)
-        last_build = self._build_config['build'][-1]
+        last_build = self._build_config['build'][last_build_idx]
         print "Last build record:"
         pprint(last_build)
         assert last_build['status'] == 'success', \
@@ -796,11 +801,16 @@ class DataBuilder():
         es_idxer = ESIndexer(mapping=_mapping,
                              es_index_name=target_collection.name)
         es_idxer.step = 10000
-        print "ES host:", es_idxer.conn.connection._get_server()
+        print "ES host:", es_idxer.conn.servers[0].geturl()
         if ask("Continue to build ES index?") == 'Y':
-            #es_idxer.use_parallel = use_parallel
+            es_idxer.use_parallel = use_parallel
             #es_idxer.s = 609000
-            #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
+            if es_idxer.conn.indices.exists_index(es_idxer.ES_INDEX_NAME):
+                if ask('Index "{}" exists. Delete?'.format(es_idxer.ES_INDEX_NAME)) == 'Y':\
+                    es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
+                else:
+                    print "Abort."
+                    return
             es_idxer.create_index()
             #es_idxer.delete_index_type(es_idxer.ES_INDEX_es.pTYPE, noconfirm=True)
             es_idxer.build_index(target_collection, verbose=False)
