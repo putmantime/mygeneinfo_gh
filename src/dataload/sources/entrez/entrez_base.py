@@ -416,3 +416,15 @@ class Gene2ECParser(EntrezParserBase):
             gene_d = dict([(d['_id'], d) for d in doc_li])
             return gene_d
 
+
+class Gene2GeneRifParser(EntrezParserBase):
+    '''
+    '''
+    DATAFILE = 'generif/generifs_basic.gz'
+
+    def load(self):
+        load_start(self.datafile)
+        gene2generif = tab2dict(self.datafile, (1, 2, 4), 0, alwayslist=1)
+        gene2generif = dict_convert(gene2generif, valuefn=lambda v: {'generif': [dict(pubmed=x[0], text=x[1]) for x in v]})
+        load_done('[%d]' % len(gene2generif))
+        return gene2generif

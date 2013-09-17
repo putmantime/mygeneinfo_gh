@@ -22,7 +22,8 @@ __sources_dict__ = {
               'entrez.entrez_unigene',
               'entrez.entrez_go',
               'entrez.entrez_ec',
-              'entrez.entrez_retired'],
+              'entrez.entrez_retired',
+              'entrez.entrez_generif'],
     'ensembl': [
               'ensembl.ensembl_gene',
               'ensembl.ensembl_acc',
@@ -36,6 +37,8 @@ __sources_dict__ = {
               'uniprot.uniprot_pir'],
     'pharmgkb': ['pharmgkb'],
     'reporter': ['reporter'],
+    'ucsc'    : ['ucsc.ucsc_exons'],
+
     }
 
 #__sources__ = []

@@ -45,7 +45,11 @@ FILE_LIST = {
                          ]},
 
     'Homologene': {'url': 'ftp://ftp.ncbi.nih.gov/pub/HomoloGene/current/',
-                   'files': ['homologene.data']}
+                   'files': ['homologene.data']},
+
+    'generif': {'url': 'ftp://ftp.ncbi.nih.gov/gene/GeneRIF/',
+                'files': ['generifs_basic.gz']},
+
 }
 
 
