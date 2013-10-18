@@ -129,7 +129,7 @@ def src_clean_archives(keep_last=1, src=None, verbose=True, noconfirm=False):
     src = src or get_src_db()
 
     archive_li = sorted([(coll.split('_archive_')[0], coll) for coll in src.collection_names()
-                                                    if coll.find('archive') != -1])
+                         if coll.find('archive') != -1])
     archive_d = list2dict(archive_li, 0, alwayslist=1)
     coll_to_remove = []
     for k, v in archive_d.items():
