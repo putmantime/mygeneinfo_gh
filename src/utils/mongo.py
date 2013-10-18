@@ -107,6 +107,7 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None)
     finally:
         cur.close()
 
+
 def src_clean_archives(keep_last=1, src=None, verbose=True, noconfirm=False):
     '''clean up archive collections in src db, only keep last <kepp_last>
        number of archive.
@@ -144,3 +145,35 @@ def src_clean_archives(keep_last=1, src=None, verbose=True, noconfirm=False):
             print "Aborted."
     else:
         print "Nothing needs to be removed."
+
+
+def target_clean_collections(keep_last=2, target=None, verbose=True, noconfirm=False):
+    '''clean up collections in target db, only keep last <keep_last> number of collections.'''
+    import re
+    from utils.common import ask
+
+    target = target or get_target_db()
+    coll_list = target.collection_names()
+
+    for prefix in ('genedoc_mygene', 'genedoc_mygene_allspecies'):
+        pat = prefix + '_(\d{8})_\w{8}'
+        _li = []
+        for coll_name in coll_list:
+            mat = re.match(pat, coll_name)
+            if mat:
+                _li.append((mat.group(1), coll_name))
+        _li.sort()   # older collection appears first
+        coll_to_remove = [x[1] for x in _li[:-keep_last]]   # keep last # of newer collections
+        if len(coll_to_remove) > 0:
+            print "{} \"{}*\" collection(s) will be removed.".format(len(coll_to_remove), prefix)
+            if verbose:
+                for coll in coll_to_remove:
+                    print '\t', coll
+            if noconfirm or ask("Continue?") == 'Y':
+                for coll in coll_to_remove:
+                    target[coll].drop()
+                print "Done.[%s collection(s) removed]" % len(coll_to_remove)
+            else:
+                print "Aborted."
+        else:
+            print "Nothing needs to be removed."
