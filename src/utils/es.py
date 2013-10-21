@@ -236,7 +236,17 @@ class ESIndexer(object):
         index_name = self.ES_INDEX_NAME
         index_type = self.ES_INDEX_TYPE
         cnt = 0
-        for doc in doc_feeder(collection, step=self.step, s=self.s):
+
+        def rate_control(cnt, t):
+            delay = 0
+            if t > 60:
+                delay = 10
+            elif t > 90:
+                delay = 30
+            if delay:
+                time.sleep(delay)
+
+        for doc in doc_feeder(collection, step=self.step, s=self.s, batch_callback=rate_control):
             conn.index(doc, index_name, index_type, doc['_id'], bulk=True)
             cnt += 1
             if verbose:
