@@ -2,7 +2,9 @@ import sys
 import os.path
 import time
 from datetime import datetime
-import base64, random, string
+import base64
+import random
+import string
 import os
 import types
 
@@ -13,12 +15,13 @@ src_path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
 # Misc. Utility functions
 #===============================================================================
 
-def ask(prompt,options='YN'):
+def ask(prompt, options='YN'):
     '''Prompt Yes or No,return the upper case 'Y' or 'N'.'''
-    options=options.upper()
+    options = options.upper()
     while 1:
-        s=raw_input(prompt+'[%s]' % '|'.join(list(options))).strip().upper()
-        if s in options: break
+        s = raw_input(prompt+'[%s]' % '|'.join(list(options))).strip().upper()
+        if s in options:
+            break
     return s
 
 
@@ -49,16 +52,17 @@ def get_random_string():
 
 
 class LogPrint:
-    def __init__(self,log_f,log=1,timestamp=0):
+    def __init__(self, log_f, log=1, timestamp=0):
         '''If this class is set to sys.stdout, it will output both log_f and __stdout__.
            log_f is a file handler.
         '''
-        self.log_f=log_f
-        self.log=log
-        self.timestamp=timestamp
+        self.log_f = log_f
+        self.log = log
+        self.timestamp = timestamp
         if self.timestamp:
-           self.log_f.write('*'*10 + 'Log starts at ' + time.ctime() + '*'*10 +'\n')
-    def write(self,text):
+            self.log_f.write('*'*10 + 'Log starts at ' + time.ctime() + '*'*10 + '\n')
+
+    def write(self, text):
         sys.__stdout__.write(text)
         if self.log:
             self.log_f.write(text)
@@ -66,21 +70,26 @@ class LogPrint:
 
     def flush(self):
         self.log_f.flush()
+
     def start(self):
-        sys.stdout=self
+        sys.stdout = self
+
     def pause(self):
-        sys.stdout=sys.__stdout__
+        sys.stdout = sys.__stdout__
+
     def resume(self):
-        sys.stdout=self
+        sys.stdout = self
+
     def close(self):
         if self.timestamp:
-           self.log_f.write('*'*10 + 'Log ends at ' + time.ctime() + '*'*10 +'\n')
-        sys.stdout=sys.__stdout__
+            self.log_f.write('*'*10 + 'Log ends at ' + time.ctime() + '*'*10 + '\n')
+        sys.stdout = sys.__stdout__
         self.log_f.close()
+
     def fileno(self):
         return self.log_f.fileno()
 
-def addsuffix(filename,suffix,noext=False):
+def addsuffix(filename, suffix, noext=False):
     '''Add suffix in front of ".extension", so keeping the same extension.
        if noext is True, remove extension from the filename.'''
     if noext:
@@ -89,7 +98,7 @@ def addsuffix(filename,suffix,noext=False):
         return suffix.join(os.path.splitext(filename))
 
 
-def safewfile(filename,prompt=True,default='C',mode='w'):
+def safewfile(filename, prompt=True, default='C', mode='w'):
     '''return a file handle in 'w' mode,use alternative name if same name exist.
        if prompt == 1, ask for overwriting,appending or changing name,
        else, changing to available name automatically.'''
@@ -99,7 +108,7 @@ def safewfile(filename,prompt=True,default='C',mode='w'):
             break
         print 'Warning:"%s" exists.' % filename,
         if prompt:
-            option = ask('Overwrite,Append or Change name?','OAC')
+            option = ask('Overwrite,Append or Change name?', 'OAC')
         else:
             option = default
         if option == 'O':
@@ -108,16 +117,16 @@ def safewfile(filename,prompt=True,default='C',mode='w'):
                 break
         elif option == 'A':
             print "Append to original file."
-            f=file(filename,'a')
-            f.write('\n'+"="*20+'Appending on '+time.ctime()+"="*20+'\n')
-            return f,filename
-        print 'Use "%s" instead.' % addsuffix(filename,'_'+str(suffix))
-        filename=addsuffix(filename,'_'+str(suffix))
-        suffix+=1
-    return file(filename,mode),filename
+            f = file(filename, 'a')
+            f.write('\n' + "=" * 20 + 'Appending on ' + time.ctime() + "=" * 20 + '\n')
+            return f, filename
+        print 'Use "%s" instead.' % addsuffix(filename, '_' + str(suffix))
+        filename = addsuffix(filename, '_' + str(suffix))
+        suffix += 1
+    return file(filename, mode), filename
 
 
-def SubStr(input_string,start_string='',end_string='',include=0):
+def SubStr(input_string, start_string='', end_string='', include=0):
     '''Return the substring between start_string and end_string.
         If start_string is '', cut string from the beginning of input_string.
         If end_string is '', cut string to the end of input_string.
@@ -127,22 +136,22 @@ def SubStr(input_string,start_string='',end_string='',include=0):
         include=0(default), does not include start/end_string;
         include=1:          include start/end_string.'''
 
-    start_pos=input_string.find(start_string)
+    start_pos = input_string.find(start_string)
     if start_pos == -1:
         return ''
     start_pos += len(start_string)
     if end_string == '':
-        end_pos=len(input_string)
+        end_pos = len(input_string)
     else:
-        end_pos=input_string[start_pos:].find(end_string) # get the end_pos relative with the start_pos
-        if end_pos == -1 :
+        end_pos = input_string[start_pos:].find(end_string)   # get the end_pos relative with the start_pos
+        if end_pos == -1:
             return ''
         else:
             end_pos += start_pos  # get actual end_pos
 #    print start_pos
 #    print end_pos
-    if include==1:
-        return input_string[start_pos-len(start_string):end_pos+len(end_string)]
+    if include == 1:
+        return input_string[start_pos - len(start_string): end_pos + len(end_string)]
     else:
         return input_string[start_pos:end_pos]
 
@@ -153,24 +162,24 @@ def safe_unicode(s, mask='#'):
         _s = unicode(s)
     except UnicodeDecodeError, e:
         pos = e.args[2]
-        _s = s.replace(s[pos],mask)
+        _s = s.replace(s[pos], mask)
         print 'Warning: invalid character "%s" is masked as "%s".' % (s[pos], mask)
         return safe_unicode(_s, mask)
 
     return _s
 
 
-def file_newer(source,target):
+def file_newer(source, target):
     '''return True if source file is newer than target file.'''
-    return  os.stat(source)[-2] > os.stat(target)[-2]
+    return os.stat(source)[-2] > os.stat(target)[-2]
 
 
-def dump(object, filename, bin = 1):
+def dump(object, filename, bin=1):
     '''Saves a compressed object to disk
     '''
     import gzip
     import cPickle as pickle
-    print 'Dumping into "%s"...' % filename ,
+    print 'Dumping into "%s"...' % filename,
     file = gzip.GzipFile(filename, 'wb')
     pickle.dump(object, file, protocol=bin)
     file.close()
@@ -178,9 +187,10 @@ def dump(object, filename, bin = 1):
 
 def dump2gridfs(object, filename, db, bin=1):
     '''Save a compressed object to MongoDB gridfs.'''
-    import gzip, gridfs
+    import gzip
+    import gridfs
     import cPickle as pickle
-    print 'Dumping into "MongoDB:%s/%s"...' % (db.name, filename) ,
+    print 'Dumping into "MongoDB:%s/%s"...' % (db.name, filename),
     fs = gridfs.GridFS(db)
     if fs.exists(_id=filename):
         fs.delete(filename)
@@ -206,14 +216,14 @@ def loadobj(filename, mode='file'):
 
     if mode == 'gridfs':
         import gridfs
-        filename, db = filename   #input is a tuple of (filename, mongo_db)
+        filename, db = filename   # input is a tuple of (filename, mongo_db)
         fs = gridfs.GridFS(db)
         fobj = fs.get(filename)
     else:
         if type(filename) in types.StringTypes:
             fobj = file(filename, 'rb')
         else:
-            fobj = filename   #input is a file-like handler
+            fobj = filename   # input is a file-like handler
     gzfobj = gzip.GzipFile(fileobj=fobj)
     try:
         buffer = ""
@@ -259,12 +269,8 @@ def hipchat_msg(msg):
             color = 'red'
             break
     params = 'room_id={}&from={}&message={}&color={}'.format(HIPCHAT_CONFIG['roomid'],
-                                                   HIPCHAT_CONFIG['from'],
-                                                   msg,
-                                                   color)
+                                                             HIPCHAT_CONFIG['from'],
+                                                             msg,
+                                                             color)
     res, con = h.request(url, 'POST', params, headers=headers)
     assert res.status == 200, str(res)
-
-
-
-

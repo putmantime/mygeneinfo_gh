@@ -11,7 +11,7 @@ if len(log.handlers) == 0:
     log.addHandler(log_handler)
 
 from config import ES_HOST, ES_INDEX_NAME, ES_INDEX_TYPE
-from utils.common import ask
+from utils.common import ask, timesofar
 import json
 from utils.mongo import doc_feeder
 
@@ -27,11 +27,11 @@ def get_es():
 
 
 def lastexception():
-    exc_type,exc_value,tb = sys.exc_info()
+    exc_type, exc_value, tb = sys.exc_info()
     if exc_type is None:
         print "No exception occurs."
         return
-    print exc_type.__name__ + ':' ,
+    print exc_type.__name__ + ':',
     try:
         excArgs = exc_value.__dict__["args"]
     except KeyError:
@@ -44,15 +44,15 @@ class ESIndexer(object):
         self.ES_INDEX_NAME = es_index_name or ES_INDEX_NAME
         self.ES_INDEX_TYPE = es_index_type or ES_INDEX_TYPE
         self.step = 10000
-        self.number_of_shards = 5      #set number_of_shards when create_index
-        self.s = None     #optionally, can specify number of records to skip,
-                          #useful to continue indexing after an error.
+        self.number_of_shards = 5      # set number_of_shards when create_index
+        self.s = None     # optionally, can specify number of records to skip,
+                          # useful to continue indexing after an error.
         self.use_parallel = False
         self._mapping = mapping
 
     def check(self):
         '''print out ES server info for verification.'''
-        #print "Servers:", self.conn.servers
+        # print "Servers:", self.conn.servers
         print "Servers:", self.conn.connection._get_server()
         print "Default indices:", self.conn.default_indices
         print "ES_INDEX_TYPE:", self.ES_INDEX_TYPE
@@ -62,13 +62,13 @@ class ESIndexer(object):
             print self.conn.open_index(self.ES_INDEX_NAME)
         except IndexMissingException:
             print self.conn.create_index(self.ES_INDEX_NAME, settings={
-                        "number_of_shards" : self.number_of_shards
-                    })
+                "number_of_shards": self.number_of_shards
+            })
 
     def delete_index_type(self, index_type, noconfirm=False):
         '''Delete all indexes for a given index_type.'''
         index_name = self.ES_INDEX_NAME
-        #Check if index_type exists
+        # Check if index_type exists
         try:
             self.conn.get_mapping(index_type, index_name)
         except TypeMissingException:
@@ -170,7 +170,7 @@ class ESIndexer(object):
             cmd = {op_type: {"_index": index_name,
                              "_type": index_type,
                              "_id": id}
-                  }
+                   }
 
             doc = json.dumps({"doc": extra_doc}, cls=conn.encoder)
             command = "%s\n%s" % (json.dumps(cmd, cls=conn.encoder), doc)
@@ -180,13 +180,13 @@ class ESIndexer(object):
     def optimize(self):
         '''optimize the default index.'''
         return self.conn.indices.optimize(self.ES_INDEX_NAME,
-                                          wait_for_merge=False, # True,
+                                          wait_for_merge=False,   # True,
                                           max_num_segments=5)
 
     def optimize_all(self):
         """optimize all indices"""
-        return self.conn.indices.optimize([], wait_for_merge=False, #True,
-                                              max_num_segments=5)
+        return self.conn.indices.optimize([], wait_for_merge=False,  # True,
+                                          max_num_segments=5)
 
     def get_field_mapping(self):
 #        raise NotImplementedError
@@ -199,13 +199,12 @@ class ESIndexer(object):
 
         self.verify_mapping(update_mapping=update_mapping)
         #update some settings for bulk indexing
-        conn.indices.update_settings(index_name,
-            {
-                "refresh_interval" : "-1",              #disable refresh temporarily
-                # "index.store.compress.stored": True,    #store-level compression    #no need to set it since ES v0.90
-                #"index.store.compress.tv": True,        #store-level compression
-                "auto_expand_replicas": "0-all",
-            })
+        conn.indices.update_settings(index_name, {
+            "refresh_interval": "-1",              # disable refresh temporarily
+            # "index.store.compress.stored": True,    # store-level compression    #no need to set it since ES v0.90
+            # "index.store.compress.tv": True,        # store-level compression
+            "auto_expand_replicas": "0-all",
+        })
         try:
             print "Building index..."
             if self.use_parallel:
@@ -214,10 +213,9 @@ class ESIndexer(object):
                 cnt = self._build_index_sequential(collection, verbose)
         finally:
             #restore some settings after bulk indexing is done.
-            conn.indices.update_settings(index_name,
-                {
-                    "refresh_interval" : "1s",              #default settings
-                })
+            conn.indices.update_settings(index_name, {
+                "refresh_interval": "1s",              # default settings
+            })
 
             #time.sleep(60)    #wait
             #conn = get_es()   #need to reconnect after parallel jobs are done.
@@ -244,7 +242,9 @@ class ESIndexer(object):
             elif t > 90:
                 delay = 30
             if delay:
+                print "\tPausing for {}s...".format(delay),
                 time.sleep(delay)
+                print "done."
 
         for doc in doc_feeder(collection, step=self.step, s=self.s, batch_callback=rate_control):
             conn.index(doc, index_name, index_type, doc['_id'], bulk=True)
@@ -266,10 +266,10 @@ class ESIndexer(object):
             kwargs.update(kwargs_common)
             task_list.append(kwargs)
 
-
         @require('mongokit', 'pyes')
         def worker(kwargs):
-            import mongokit, pyes
+            import mongokit
+            import pyes
             server = kwargs['server']
             port = kwargs['port']
             src_db = kwargs['src_db']
@@ -279,7 +279,6 @@ class ESIndexer(object):
 
             mongo_conn = mongokit.Connection(server, port)
             src = mongo_conn[src_db]
-
 
             ES_HOST = kwargs['ES_HOST']
             ES_INDEX_NAME = kwargs['ES_INDEX_NAME']
@@ -297,7 +296,7 @@ class ESIndexer(object):
                     cnt += 1
             finally:
                 cur.close()
-            es_conn.flush()   #this is important to avoid missing docs
+            es_conn.flush()   # this is important to avoid missing docs
             es_conn.refresh()
             return cnt
 
@@ -315,9 +314,6 @@ class ESIndexer(object):
         id_li = []
         q = MatchAllQuery()
         if verbose:
-            import time
-            from utils.common import timesofar
-
             n = self.count()['count']
             print '\ttotal docs: {}'.format(n)
             print '\t1-{}...'.format(step),
@@ -363,19 +359,13 @@ class ESIndexer(object):
 
     def delete_docs(self, ids):
         _q = {
-            "ids" : {
-                "values" : ids
+            "ids": {
+                "values": ids
             }
         }
 
         #check count first
         _cnt = self.count(_q)['count']
-        assert _cnt==len(ids), "Error: {}!={}. Double check ids for deletion.".format(_cnt, len(ids))
+        assert _cnt == len(ids), "Error: {}!={}. Double check ids for deletion.".format(_cnt, len(ids))
 
         print self.conn.delete_by_query(self.ES_INDEX_NAME, self.ES_INDEX_TYPE, _q)
-
-
-
-
-
-
