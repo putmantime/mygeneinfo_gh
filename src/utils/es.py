@@ -247,7 +247,10 @@ class ESIndexer(object):
                 print "done."
 
         for doc in doc_feeder(collection, step=self.step, s=self.s, batch_callback=rate_control):
-            conn.index(doc, index_name, index_type, doc['_id'], bulk=True)
+            # ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-index_.html#index-replication
+            querystring_args = {'replication': 'async'}
+            conn.index(doc, index_name, index_type, doc['_id'], bulk=True,
+                       querystring_args=querystring_args)
             cnt += 1
             if verbose:
                 print cnt, ':', doc['_id']
