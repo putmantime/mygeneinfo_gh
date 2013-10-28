@@ -237,10 +237,10 @@ class ESIndexer(object):
 
         def rate_control(cnt, t):
             delay = 0
-            if t > 60:
-                delay = 10
-            elif t > 90:
+            if t > 90:
                 delay = 30
+            elif t > 60:
+                delay = 10
             if delay:
                 print "\tPausing for {}s...".format(delay),
                 time.sleep(delay)
