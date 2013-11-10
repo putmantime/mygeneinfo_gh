@@ -84,7 +84,7 @@ if __name__ == '__main__':
         if not (no_confirm or len(os.listdir(DATA_FOLDER))==0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER)=='Y'):
             sys.exit(0)
 
-    log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'pharmkgb_dump.log'), prompt=(not no_confirm), default='O')
+    log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'pharmgkb_dump.log'), prompt=(not no_confirm), default='O')
     sys.stdout = LogPrint(log_f, timestamp=True)
 
     #mark the download starts

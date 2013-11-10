@@ -202,6 +202,36 @@ class MongoViewer(tornado.web.RequestHandler):
         self.write(_json_data)
 
 
+class LogViewer(tornado.web.RequestHandler):
+    def get(self, kind, src, timestamp=None):
+        dump_dir = '/opt/genedoc-hub/load_archive/by_resources/'
+        build_dir = '/sulab/cwu/prj/genedoc-hub/logs/'
+        logfile = None
+        if kind in ['dump', 'upload']:
+            dir_base = dump_dir + src
+            if os.path.exists(dir_base):
+                if not timestamp:
+                    timestamp = timestamp or sorted(os.walk(dir_base).next()[1])[-1]
+                if src == 'ucsc':
+                    timestamp = ''
+                logfile = os.path.join(dir_base, timestamp,
+                                       src + ('_dump.log' if kind == 'dump' else '_upload.log'))
+        elif kind == 'build':
+            if timestamp:
+                logfile = os.path.join(build_dir, 'databuild_genedoc_{}_{}.log'.format(src, timestamp))
+            else:
+                logfile = sorted([fn for fn in os.walk(build_dir).next()[2] if fn.startswith('databuild_genedoc')])[-1]
+                logfile = os.path.join(build_dir, logfile)
+
+        if logfile and os.path.exists(logfile):
+            with file(logfile) as log_f:
+                self.write('<pre>')
+                self.write(log_f.read())
+                self.write('</pre>')
+        else:
+            self.write("Not found: {}".format(logfile))
+
+
 APP_LIST = [
 #        (r"/status", StatusCheckHandler),
 #        (r"/metadata", MetaDataHandler),
@@ -211,6 +241,7 @@ APP_LIST = [
         (r"/query/?", QueryHandler),
         (r"/interval/?", IntervalQueryHandler),
         (r"/mongo/(\w+)/?(\w*)/?(\w*)/?", MongoViewer),
+        (r"/log/(\w+)/(\w+)/?(\w*)/?", LogViewer),
 ]
 
 settings = {}

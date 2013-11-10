@@ -79,6 +79,10 @@ class GeneDocDispatcher:
                     if hipchat_msg:
                         hipchat_msg(msg)
                     source_upload_failed.send(self, src_name=src)
+                if hipchat_msg:
+                    msg = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://su01:8000/log/dump/{}">dump log</a>'.format(src)
+                    msg += '&nbsp;&nbsp;<a href="http://su01:8000/log/upload/{}">upload log</a>'.format(src)
+                    hipchat_msg(msg, message_format='html')
 
         for src in jobs_finished:
             del running_processes[src]
@@ -112,6 +116,8 @@ class GeneDocDispatcher:
             print msg
             if hipchat_msg:
                 hipchat_msg(msg)
+                msg = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://su01:8000/log/build/{}">build log</a>'.format(config)
+                hipchat_msg(msg, message_format='html')
 
             assert returncode == 0, "Subprocess failed. Check error above."
 

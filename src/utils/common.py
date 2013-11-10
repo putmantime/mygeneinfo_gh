@@ -255,7 +255,7 @@ def newer(t0, t1, format='%Y%m%d'):
     return datetime.strptime(t0, format) < datetime.strptime(t1, format)
 
 
-def hipchat_msg(msg):
+def hipchat_msg(msg, color='yellow', message_format='text'):
     import httplib2
     from config import HIPCHAT_CONFIG
 
@@ -268,9 +268,10 @@ def hipchat_msg(msg):
         if _msg.find(keyword) != -1:
             color = 'red'
             break
-    params = 'room_id={}&from={}&message={}&color={}'.format(HIPCHAT_CONFIG['roomid'],
+    params = 'room_id={}&from={}&message={}&color={}&message_format={}'.format(HIPCHAT_CONFIG['roomid'],
                                                              HIPCHAT_CONFIG['from'],
                                                              msg,
-                                                             color)
+                                                             color,
+                                                             message_format)
     res, con = h.request(url, 'POST', params, headers=headers)
     assert res.status == 200, str(res)
