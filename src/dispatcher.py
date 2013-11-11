@@ -66,11 +66,13 @@ class GeneDocDispatcher:
                 p.log_f.close()
 
                 if returncode == 0:
-                    msg = 'Dispatcher:  "{}" uploader finished successfully with code {} (time: {}s)'.format(src, returncode, t1)
+                    msg = 'Dispatcher:  "{}" uploader finished successfully with code {} (time: {}s)'.format(src, returncode, timesofar(p.t0, t1=t1))
                     print msg
                     d['upload.status'] = "success"
                     if hipchat_msg:
-                        hipchat_msg(msg)
+                        msg += '<a href="http://su01:8000/log/dump/{}">dump log</a>'.format(src)
+                        msg += '<a href="http://su01:8000/log/upload/{}">upload log</a>'.format(src)
+                        hipchat_msg(msg, message_format='html')
                     source_upload_success.send(self, src_name=src)
                 else:
                     msg = 'Dispatcher:  "{}" uploader failed with code {} (time: {}s)'.format(src, returncode, t1)
@@ -79,10 +81,6 @@ class GeneDocDispatcher:
                     if hipchat_msg:
                         hipchat_msg(msg)
                     source_upload_failed.send(self, src_name=src)
-                if hipchat_msg:
-                    msg = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://su01:8000/log/dump/{}">dump log</a>'.format(src)
-                    msg += '&nbsp;&nbsp;<a href="http://su01:8000/log/upload/{}">upload log</a>'.format(src)
-                    hipchat_msg(msg, message_format='html')
 
         for src in jobs_finished:
             del running_processes[src]
@@ -115,8 +113,7 @@ class GeneDocDispatcher:
                 msg = 'Dispatcher:  "{}" builder failed successfully with code {} (time: {})'.format(config, returncode, t)
             print msg
             if hipchat_msg:
-                hipchat_msg(msg)
-                msg = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://su01:8000/log/build/{}">build log</a>'.format(config)
+                msg += '<a href="http://su01:8000/log/build/{}">build log</a>'.format(config)
                 hipchat_msg(msg, message_format='html')
 
             assert returncode == 0, "Subprocess failed. Check error above."
