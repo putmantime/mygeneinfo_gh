@@ -21,7 +21,7 @@ import time
 
 def get_es():
     conn = ES(ES_HOST, default_indices=[ES_INDEX_NAME],
-              bulk_size=10000,
+              bulk_size=5000,
               timeout=6000.0, max_retries=100)
     return conn
 
@@ -39,11 +39,12 @@ def lastexception():
     return str(exc_type)+':'+''.join([str(x) for x in excArgs])
 
 class ESIndexer(object):
-    def __init__(self, es_index_name=None, es_index_type=None, mapping=None):
+    def __init__(self, es_index_name=None, es_index_type=None, mapping=None, step=5000):
         self.conn = get_es()
         self.ES_INDEX_NAME = es_index_name or ES_INDEX_NAME
         self.ES_INDEX_TYPE = es_index_type or ES_INDEX_TYPE
-        self.step = 10000
+        self.step = step
+        self.conn.bulk_size = self.step
         self.number_of_shards = 5      # set number_of_shards when create_index
         self.s = None     # optionally, can specify number of records to skip,
                           # useful to continue indexing after an error.
@@ -62,7 +63,10 @@ class ESIndexer(object):
             print self.conn.open_index(self.ES_INDEX_NAME)
         except IndexMissingException:
             print self.conn.create_index(self.ES_INDEX_NAME, settings={
-                "number_of_shards": self.number_of_shards
+                "number_of_shards": self.number_of_shards,
+                "number_of_replicas": 0,    # set this to 0 to boost indexing
+                                            # after indexing, set "auto_expand_replicas": "0-all",
+                                            #   to make additional replicas.
             })
 
     def delete_index_type(self, index_type, noconfirm=False):
@@ -203,7 +207,8 @@ class ESIndexer(object):
             "refresh_interval": "-1",              # disable refresh temporarily
             # "index.store.compress.stored": True,    # store-level compression    #no need to set it since ES v0.90
             # "index.store.compress.tv": True,        # store-level compression
-            "auto_expand_replicas": "0-all",
+            # "auto_expand_replicas": "0-all",
+            "number_of_replicas": 0,
         })
         try:
             print "Building index..."
@@ -215,6 +220,7 @@ class ESIndexer(object):
             #restore some settings after bulk indexing is done.
             conn.indices.update_settings(index_name, {
                 "refresh_interval": "1s",              # default settings
+                "auto_expand_replicas": "0-all",
             })
 
             #time.sleep(60)    #wait
