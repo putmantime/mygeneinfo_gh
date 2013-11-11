@@ -220,7 +220,7 @@ class LogViewer(tornado.web.RequestHandler):
             if timestamp:
                 logfile = os.path.join(build_dir, 'databuild_genedoc_{}_{}.log'.format(src, timestamp))
             else:
-                logfile = sorted([fn for fn in os.walk(build_dir).next()[2] if fn.startswith('databuild_genedoc')])[-1]
+                logfile = sorted([fn for fn in os.walk(build_dir).next()[2] if re.match('databuild_genedoc_{}_\d+.log'.format(src), fn)])[-1]
                 logfile = os.path.join(build_dir, logfile)
 
         if logfile and os.path.exists(logfile):
