@@ -43,6 +43,10 @@ class ESIndexer(object):
         self.conn = get_es()
         self.ES_INDEX_NAME = es_index_name or ES_INDEX_NAME
         self.ES_INDEX_TYPE = es_index_type or ES_INDEX_TYPE
+        if self.ES_INDEX_NAME:
+            self.conn.default_indices = [self.ES_INDEX_NAME]
+        if self.ES_INDEX_TYPE:
+            self.conn.default_types = [self.ES_INDEX_TYPE]
         self.step = step
         self.conn.bulk_size = self.step
         self.number_of_shards = 5      # set number_of_shards when create_index
@@ -180,6 +184,19 @@ class ESIndexer(object):
             command = "%s\n%s" % (json.dumps(cmd, cls=conn.encoder), doc)
             conn.bulker.add(command)
             return conn.flush_bulk()
+
+    def wait_till_all_shards_ready(self, timeout=None, interval=5):
+        if timeout:
+            t0 = time.time()
+        while 1:
+            assert self.conn.collect_info(), "collect_info failed. Server error?"
+            shards_status = self.conn.info['status']['_shards']
+            if shards_status['total'] == shards_status['successful']:
+                # all shards are ready now.
+                return True
+            time.sleep(interval)
+            if timeout:
+                assert time.time()-t0 < timeout, 'Time out. Shards are not ready within "{}"s.\n\t{}'.format(timeout, shards_status)
 
     def optimize(self):
         '''optimize the default index.'''
