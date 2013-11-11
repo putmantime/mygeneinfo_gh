@@ -799,8 +799,10 @@ class DataBuilder():
             _mapping['_meta'] = _meta
 
         es_idxer = ESIndexer(mapping=_mapping,
-                             es_index_name=target_collection.name)
-        es_idxer.step = 10000
+                             es_index_name=target_collection.name,
+                             step=5000)
+        if build_config == 'mygene_allspecies':
+            es_idxer.number_of_shards = 10   #default 5
         print "ES host:", es_idxer.conn.servers[0].geturl()
         if ask("Continue to build ES index?") == 'Y':
             es_idxer.use_parallel = use_parallel
@@ -814,7 +816,8 @@ class DataBuilder():
             es_idxer.create_index()
             #es_idxer.delete_index_type(es_idxer.ES_INDEX_es.pTYPE, noconfirm=True)
             es_idxer.build_index(target_collection, verbose=False)
-            es_idxer.optimize()
+            if es_idxer.wait_till_all_shards_ready():
+                print "Optimizing...", es_idxer.optimize()
 
     def sync_index(self, use_parallel=True):
         from utils import diff
