@@ -21,7 +21,7 @@ import time
 
 def get_es(es_host=None):
     es_host = es_host or ES_HOST
-    conn = ES(es_host, default_indices=[ES_INDEX_NAME],
+    conn = ES(es_host, default_indices=[],
               bulk_size=5000,
               timeout=6000.0, max_retries=100)
     return conn
@@ -410,3 +410,38 @@ class ESIndexer(object):
         assert _cnt == len(ids), "Error: {}!={}. Double check ids for deletion.".format(_cnt, len(ids))
 
         print self.conn.delete_by_query(self.ES_INDEX_NAME, self.ES_INDEX_TYPE, _q)
+
+
+def es_clean_indices(keep_last=2, es_host=None, verbose=True, noconfirm=False, dryrun=False):
+    '''clean up es indices, only keep last <keep_last> number of indices.'''
+    import re
+    from utils.common import ask
+
+    conn = get_es(es_host)
+    index_li = conn.get_indices().keys()
+
+    for prefix in ('genedoc_mygene', 'genedoc_mygene_allspecies'):
+        pat = prefix + '_(\d{8})_\w{8}'
+        _li = []
+        for index in index_li:
+            mat = re.match(pat, index)
+            if mat:
+                _li.append((mat.group(1), index))
+        _li.sort()   # older collection appears first
+        index_to_remove = [x[1] for x in _li[:-keep_last]]   # keep last # of newer indices
+        if len(index_to_remove) > 0:
+            print "{} \"{}*\" indices will be removed.".format(len(index_to_remove), prefix)
+            if verbose:
+                for index in index_to_remove:
+                    print '\t', index
+            if noconfirm or ask("Continue?") == 'Y':
+                for index in index_to_remove:
+                    if dryrun:
+                        print "dryrun=True, nothing is actually deleted"
+                    else:
+                        conn.indices.delete_index(index)
+                print "Done.[%s indices removed]" % len(index_to_remove)
+            else:
+                print "Aborted."
+        else:
+            print "Nothing needs to be removed."
