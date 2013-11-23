@@ -66,7 +66,7 @@ class GeneDocDispatcher:
                 p.log_f.close()
 
                 if returncode == 0:
-                    msg = 'Dispatcher:  "{}" uploader finished successfully with code {} (time: {}s)'.format(src, returncode, timesofar(p.t0, t1=t1))
+                    msg = 'Dispatcher:  "{}" uploader finished successfully with code {} (time: {})'.format(src, returncode, timesofar(p.t0, t1=t1))
                     print msg
                     d['upload.status'] = "success"
                     if hipchat_msg:
