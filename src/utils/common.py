@@ -274,4 +274,4 @@ def hipchat_msg(msg, color='yellow', message_format='text'):
                                                              color,
                                                              message_format)
     res, con = h.request(url, 'POST', params, headers=headers)
-    assert res.status == 200, str(res)
+    assert res.status == 200, (str(res), con)
