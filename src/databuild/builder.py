@@ -724,31 +724,32 @@ class DataBuilder():
         else:
             print "Warning: total count of gene documents does not match [{}, should be {}]".format(target_cnt, stats_cnt)
 
-        for src in self._build_config['sources']:
-            print "\nSrc:", src
-            # if 'id_type' in self.src_master[src] and self.src_master[src]['id_type'] != 'entrez_gene':
-            #     print "skipped."
-            #     continue
-            cnt = self.src[src].count()
-            fdr1 = doc_feeder(self.src[src], step=10000, s=cnt-n)
-            rand_s = random.randint(0, cnt-n)
-            fdr2 = doc_feeder(self.src[src], step=n, s=rand_s, e=rand_s+n)
-            _first_exception = True
-            for doc in itertools.chain(fdr1, fdr2):
-                _id = doc['_id']
-                try:
-                    es_doc = self.target.get_from_id(_id)
-                except pyes.exceptions.NotFoundException:
-                    if _first_exception:
-                        print
-                        _first_exception = False
-                    print _id, 'not found.'
-                    continue
-                for k in doc:
-                    if src == 'entrez_homologene' and k == 'taxid':
-                        # there is occasionally known error for taxid in homologene data.
+        if n > 0:
+            for src in self._build_config['sources']:
+                print "\nSrc:", src
+                # if 'id_type' in self.src_master[src] and self.src_master[src]['id_type'] != 'entrez_gene':
+                #     print "skipped."
+                #     continue
+                cnt = self.src[src].count()
+                fdr1 = doc_feeder(self.src[src], step=10000, s=cnt-n)
+                rand_s = random.randint(0, cnt-n)
+                fdr2 = doc_feeder(self.src[src], step=n, s=rand_s, e=rand_s+n)
+                _first_exception = True
+                for doc in itertools.chain(fdr1, fdr2):
+                    _id = doc['_id']
+                    try:
+                        es_doc = self.target.get_from_id(_id)
+                    except pyes.exceptions.NotFoundException:
+                        if _first_exception:
+                            print
+                            _first_exception = False
+                        print _id, 'not found.'
                         continue
-                    assert es_doc.get(k, None) == doc[k], (_id, k, es_doc.get(k, None), doc[k])
+                    for k in doc:
+                        if src == 'entrez_homologene' and k == 'taxid':
+                            # there is occasionally known error for taxid in homologene data.
+                            continue
+                        assert es_doc.get(k, None) == doc[k], (_id, k, es_doc.get(k, None), doc[k])
 
 
     def build_index(self, use_parallel=True):
@@ -767,8 +768,10 @@ class DataBuilder():
         else:
             print "Error: target collection is not ready yet or failed to build."
 
-    def build_index2(self, build_config='mygene_allspecies', last_build_idx=-1, use_parallel=False):
-        """Build ES index from last successfully-merged mongodb collection."""
+    def build_index2(self, build_config='mygene_allspecies', last_build_idx=-1, use_parallel=False, es_host=None):
+        """Build ES index from last successfully-merged mongodb collection.
+            optional "es_host" argument can be used to specified another ES host, otherwise default ES_HOST.
+        """
         from pprint import pprint
         self.load_build_config(build_config)
         last_build = self._build_config['build'][last_build_idx]
@@ -800,6 +803,7 @@ class DataBuilder():
 
         es_idxer = ESIndexer(mapping=_mapping,
                              es_index_name=target_collection.name,
+                             es_host = es_host,
                              step=5000)
         if build_config == 'mygene_allspecies':
             es_idxer.number_of_shards = 10   #default 5
@@ -816,8 +820,9 @@ class DataBuilder():
             es_idxer.create_index()
             #es_idxer.delete_index_type(es_idxer.ES_INDEX_es.pTYPE, noconfirm=True)
             es_idxer.build_index(target_collection, verbose=False)
-            if es_idxer.wait_till_all_shards_ready():
-                print "Optimizing...", es_idxer.optimize()
+            # time.sleep(10)    # pausing 10 second here
+            # if es_idxer.wait_till_all_shards_ready():
+            #     print "Optimizing...", es_idxer.optimize()
 
     def sync_index(self, use_parallel=True):
         from utils import diff
