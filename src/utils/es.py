@@ -19,8 +19,9 @@ import sys
 import time
 
 
-def get_es():
-    conn = ES(ES_HOST, default_indices=[ES_INDEX_NAME],
+def get_es(es_host=None):
+    es_host = es_host or ES_HOST
+    conn = ES(es_host, default_indices=[ES_INDEX_NAME],
               bulk_size=5000,
               timeout=6000.0, max_retries=100)
     return conn
@@ -39,8 +40,8 @@ def lastexception():
     return str(exc_type)+':'+''.join([str(x) for x in excArgs])
 
 class ESIndexer(object):
-    def __init__(self, es_index_name=None, es_index_type=None, mapping=None, step=5000):
-        self.conn = get_es()
+    def __init__(self, es_index_name=None, es_index_type=None, mapping=None, es_host=None, step=5000):
+        self.conn = get_es(es_host)
         self.ES_INDEX_NAME = es_index_name or ES_INDEX_NAME
         self.ES_INDEX_TYPE = es_index_type or ES_INDEX_TYPE
         if self.ES_INDEX_NAME:
@@ -191,6 +192,7 @@ class ESIndexer(object):
         while 1:
             assert self.conn.collect_info(), "collect_info failed. Server error?"
             shards_status = self.conn.info['status']['_shards']
+            print shards_status['total'], shards_status['successful']
             if shards_status['total'] == shards_status['successful']:
                 # all shards are ready now.
                 return True
@@ -237,7 +239,6 @@ class ESIndexer(object):
             #restore some settings after bulk indexing is done.
             conn.indices.update_settings(index_name, {
                 "refresh_interval": "1s",              # default settings
-                "auto_expand_replicas": "0-all",
             })
 
             #time.sleep(60)    #wait
@@ -249,8 +250,21 @@ class ESIndexer(object):
                 print conn.indices.refresh()
             except:
                 pass
+
+            print "Validating...",
+            target_cnt = collection.count()
+            es_cnt = self.count()['count']
+            if target_cnt == es_cnt:
+                print "OK [total count={}]".format(target_cnt)
+            else:
+                print "\nWarning: total count of gene documents does not match [{}, should be {}]".format(es_cnt, target_cnt)
+
         if cnt:
             print 'Done! - {} docs indexed.'.format(cnt)
+            print "Optimizing...", self.optimize()
+            conn.indices.update_settings(index_name, {
+                "auto_expand_replicas": "0-all",   # expand replicas to all nodes
+            })
 
     def _build_index_sequential(self, collection, verbose=False):
         conn = self.conn
@@ -271,7 +285,8 @@ class ESIndexer(object):
 
         for doc in doc_feeder(collection, step=self.step, s=self.s, batch_callback=rate_control):
             # ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-index_.html#index-replication
-            querystring_args = {'replication': 'async'}
+            #querystring_args = {'replication': 'async'}
+            querystring_args = None
             conn.index(doc, index_name, index_type, doc['_id'], bulk=True,
                        querystring_args=querystring_args)
             cnt += 1
