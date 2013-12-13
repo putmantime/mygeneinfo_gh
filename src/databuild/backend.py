@@ -4,7 +4,6 @@ Support MongoDB, ES, CouchDB
 '''
 
 
-
 class GeneDocBackendBase:
     name = 'Undefined'
 
@@ -38,6 +37,7 @@ class GeneDocBackendBase:
 
 class GeneDocMemeoryBackend(GeneDocBackendBase):
     name = 'memory'
+
     def __init__(self, target_name=None):
         """target_dict is None or a dict."""
         self.target_dict = {}
@@ -70,6 +70,7 @@ class GeneDocMemeoryBackend(GeneDocBackendBase):
 
 class GeneDocMongoDBBackend(GeneDocBackendBase):
     name = 'mongodb'
+
     def __init__(self, target_collection=None):
         """target_collection is a pymongo collection object."""
         self.target_collection = target_collection
@@ -81,20 +82,36 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
         # if add_padding:
         #     for doc in doc_li:
         #         doc['temp_padding'] = 'a'*1000
-        self.target_collection.insert(doc_li, manipulate=False, check_keys=False,
-                                   w=0)
+        self.target_collection.insert(doc_li, manipulate=False,
+                                      check_keys=False, w=0)
         # if add_padding:
         #    for doc in doc_li:
         #        self.target_collection.update({'_id': doc['_id']},
         #                                      {'$unset': {'temp_padding': ''}},
         #                                      check_keys=False, w=0)
 
-
     def update(self, id, extra_doc):
         '''if id does not exist in the target_collection,
             the update will be ignored.
         '''
         self.target_collection.update({'_id': id}, {'$set': extra_doc},
+                                      manipulate=False, check_keys=False,
+                                      upsert=False, w=0)
+
+    def update_diff(self, diff, extra={}):
+        '''update a doc based on the diff returned from diff.diff_doc
+            "extra" can be passed (as a dictionary) to add common fields to the
+            updated doc, e.g. a timestamp.
+        '''
+        _updates = {}
+        _add_d = dict(diff.get('add', {}).items() + diff.get('update', {}).items())
+        if _add_d:
+            if extra:
+                _add_d.update(extra)
+            _updates['$set'] = _add_d
+        if diff.get('delete', None):
+            _updates['$unset'] = dict([(x, 1) for x in diff['delete']])
+        self.target_collection.update({'_id': diff['_id']}, _updates,
                                       manipulate=False, check_keys=False,
                                       upsert=False, w=0)
 
@@ -127,8 +144,14 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
         '''flush all pending writes.'''
         self.target_collection.database.connection.fsync(async=True)
 
+    def remove_from_ids(self, ids, step=10000):
+        for i in range(0, len(ids), step):
+            self.target_collection.remove({'_id': ids[i:i+step]})
+
+
 class GeneDocESBackend(GeneDocBackendBase):
     name = 'es'
+
     def __init__(self, esidxer=None):
         """esidxer is an instance of utils.es.ESIndexer class."""
         self.target_esidxer = esidxer
@@ -192,6 +215,7 @@ class GeneDocESBackend(GeneDocBackendBase):
 
 class GeneDocCouchDBBackend(GeneDocBackendBase):
     name = 'couchdb'
+
     def __init__(self, target_server=None, db_name=None):
         '''target_server is an instance of Couchdb Server class.'''
         self.target_server = target_server
@@ -213,18 +237,18 @@ class GeneDocCouchDBBackend(GeneDocBackendBase):
         from utils.common import timesofar
         from utils.dataload import list2dict, list_itemcnt, listsort
 
-        output=[]
+        output = []
         t0 = time.time()
         for i in range(0, len(doc_li), step):
             output.extend(self.target_db.update(doc_li[i:i+step]))
             if verbose:
                 print '\t%d-%d Done [%s]...' % (i+1, min(i+step, len(doc_li)), timesofar(t0))
 
-        res = list2dict(list_itemcnt([x[0] for x in output]),0)
-        print "Done![%s, %d OK, %d Error]" % (timesofar(t0), res.get(True,0), res.get(False,0))
+        res = list2dict(list_itemcnt([x[0] for x in output]), 0)
+        print "Done![%s, %d OK, %d Error]" % (timesofar(t0), res.get(True, 0), res.get(False, 0))
         res = listsort(list_itemcnt([x[2].args[0] for x in output if x[0] is False]), 1, reverse=True)
         print '\n'.join(['\t%s\t%d' % x for x in res[:10]])
-        if len(res)>10:
+        if len(res) > 10:
             print "\t%d lines omitted..." % (len(res)-10)
 
     def _homologene_trimming(self, species_li):
@@ -290,7 +314,3 @@ class GeneDocCouchDBBackend(GeneDocBackendBase):
 
     def get_from_id(self, id):
         return self.target_db[id]
-
-
-
-
