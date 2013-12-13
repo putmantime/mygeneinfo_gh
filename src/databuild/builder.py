@@ -768,9 +768,10 @@ class DataBuilder():
         else:
             print "Error: target collection is not ready yet or failed to build."
 
-    def build_index2(self, build_config='mygene_allspecies', last_build_idx=-1, use_parallel=False, es_host=None):
+    def build_index2(self, build_config='mygene_allspecies', last_build_idx=-1, use_parallel=False, es_host=None, es_index_name=None):
         """Build ES index from last successfully-merged mongodb collection.
             optional "es_host" argument can be used to specified another ES host, otherwise default ES_HOST.
+            optional "es_index_name" argument can be used to pass an alternative index name, otherwise same as mongodb collection name 
         """
         from pprint import pprint
         self.load_build_config(build_config)
@@ -800,14 +801,15 @@ class DataBuilder():
             _meta['stats'] = self._stats
         if _meta:
             _mapping['_meta'] = _meta
-
+        es_index_name = es_index_name or target_collection.name
         es_idxer = ESIndexer(mapping=_mapping,
-                             es_index_name=target_collection.name,
+                             es_index_name=es_index_name,
                              es_host = es_host,
                              step=5000)
         if build_config == 'mygene_allspecies':
             es_idxer.number_of_shards = 10   #default 5
         print "ES host:", es_idxer.conn.servers[0].geturl()
+        print "ES index:", es_index_name
         if ask("Continue to build ES index?") == 'Y':
             es_idxer.use_parallel = use_parallel
             #es_idxer.s = 609000
