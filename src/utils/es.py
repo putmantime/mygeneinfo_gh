@@ -17,6 +17,7 @@ from utils.mongo import doc_feeder
 
 import sys
 import time
+import re
 
 
 def get_es(es_host=None):
@@ -215,7 +216,7 @@ class ESIndexer(object):
 #        raise NotImplementedError
         return self._mapping
 
-    def build_index(self, collection, update_mapping=False, verbose=False):
+    def build_index(self, collection, update_mapping=False, verbose=False, query=None):
         conn = self.conn
         index_name = self.ES_INDEX_NAME
         #index_type = self.ES_INDEX_TYPE
@@ -234,7 +235,7 @@ class ESIndexer(object):
             if self.use_parallel:
                 cnt = self._build_index_parallel(collection, verbose)
             else:
-                cnt = self._build_index_sequential(collection, verbose)
+                cnt = self._build_index_sequential(collection, verbose, query=query)
         finally:
             #restore some settings after bulk indexing is done.
             conn.indices.update_settings(index_name, {
@@ -252,7 +253,7 @@ class ESIndexer(object):
                 pass
 
             print "Validating...",
-            target_cnt = collection.count()
+            target_cnt = collection.find(query).count()
             es_cnt = self.count()['count']
             if target_cnt == es_cnt:
                 print "OK [total count={}]".format(target_cnt)
@@ -266,7 +267,7 @@ class ESIndexer(object):
                 "auto_expand_replicas": "0-all",   # expand replicas to all nodes
             })
 
-    def _build_index_sequential(self, collection, verbose=False):
+    def _build_index_sequential(self, collection, verbose=False, query=None):
         conn = self.conn
         index_name = self.ES_INDEX_NAME
         index_type = self.ES_INDEX_TYPE
@@ -283,7 +284,7 @@ class ESIndexer(object):
                 time.sleep(delay)
                 print "done."
 
-        for doc in doc_feeder(collection, step=self.step, s=self.s, batch_callback=rate_control):
+        for doc in doc_feeder(collection, step=self.step, s=self.s, batch_callback=rate_control, query=query):
             # ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-index_.html#index-replication
             #querystring_args = {'replication': 'async'}
             querystring_args = None
@@ -414,9 +415,6 @@ class ESIndexer(object):
 
 def es_clean_indices(keep_last=2, es_host=None, verbose=True, noconfirm=False, dryrun=False):
     '''clean up es indices, only keep last <keep_last> number of indices.'''
-    import re
-    from utils.common import ask
-
     conn = get_es(es_host)
     index_li = conn.get_indices().keys()
 
@@ -445,3 +443,23 @@ def es_clean_indices(keep_last=2, es_host=None, verbose=True, noconfirm=False, d
                 print "Aborted."
         else:
             print "Nothing needs to be removed."
+
+
+def get_lastest_indices(es_host=None):
+    conn = get_es(es_host)
+    index_li = conn.get_indices().keys()
+
+    latest_indices = []
+    for prefix in ('genedoc_mygene', 'genedoc_mygene_allspecies'):
+        pat = prefix + '_(\d{8})_\w{8}'
+        _li = []
+        for index in index_li:
+            mat = re.match(pat, index)
+            if mat:
+                _li.append((mat.group(1), index))
+        latest_indices.append(sorted(_li)[-1])
+    if latest_indices[0][0] != latest_indices[1][0]:
+        print "Warning: unmatched timestamp:"
+        print '\n'.join([x[1] for x in latest_indices])
+    latest_indices = [x[1] for x in latest_indices]
+    return latest_indices
