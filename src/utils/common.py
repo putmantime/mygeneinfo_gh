@@ -7,14 +7,15 @@ import random
 import string
 import os
 import types
+from itertools import islice
 
 
 src_path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
 
+
 #===============================================================================
 # Misc. Utility functions
 #===============================================================================
-
 def ask(prompt, options='YN'):
     '''Prompt Yes or No,return the upper case 'Y' or 'N'.'''
     options = options.upper()
@@ -88,6 +89,7 @@ class LogPrint:
 
     def fileno(self):
         return self.log_f.fileno()
+
 
 def addsuffix(filename, suffix, noext=False):
     '''Add suffix in front of ".extension", so keeping the same extension.
@@ -185,6 +187,7 @@ def dump(object, filename, bin=1):
     file.close()
     print 'Done. [%s]' % os.stat(filename).st_size
 
+
 def dump2gridfs(object, filename, db, bin=1):
     '''Save a compressed object to MongoDB gridfs.'''
     import gzip
@@ -268,10 +271,34 @@ def hipchat_msg(msg, color='yellow', message_format='text'):
         if _msg.find(keyword) != -1:
             color = 'red'
             break
-    params = 'room_id={}&from={}&message={}&color={}&message_format={}'.format(HIPCHAT_CONFIG['roomid'],
-                                                             HIPCHAT_CONFIG['from'],
-                                                             msg,
-                                                             color,
-                                                             message_format)
+    params = 'room_id={}&from={}&message={}&color={}&message_format={}'
+    params = params.format(HIPCHAT_CONFIG['roomid'],
+                           HIPCHAT_CONFIG['from'],
+                           msg,
+                           color,
+                           message_format)
     res, con = h.request(url, 'POST', params, headers=headers)
     assert res.status == 200, (str(res), con)
+
+
+class dotdict(dict):
+    def __getattr__(self, attr):
+        value = self.get(attr, None)
+        if isinstance(value, dict):
+            return dotdict(value)
+        else:
+            return value
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+
+def iter_n(iterable, n):
+    '''
+    ref http://stackoverflow.com/questions/8991506/iterate-an-iterator-by-chunks-of-n-in-python
+    '''
+    it = iter(iterable)
+    while True:
+        chunk = tuple(islice(it, n))
+        if not chunk:
+            return
+        yield chunk
