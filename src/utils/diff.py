@@ -3,11 +3,13 @@ Utils to compare two list of gene documents
 '''
 import time
 import os.path
-from databuild.backend import (GeneDocMongoDBBackend,
-                               GeneDocCouchDBBackend)
 from utils.common import timesofar
+from databuild.backend import GeneDocMongoDBBackend, GeneDocESBackend
+from utils.mongo import get_target_db
+from utils.es import ESIndexer
 
-def diff_doc(doc_1, doc_2, exclude_attrs=[]):
+
+def diff_doc(doc_1, doc_2, exclude_attrs=['_timestamp']):
     diff_d = {'update': {},
               'delete': [],
               'add': {}}
@@ -26,12 +28,13 @@ def diff_doc(doc_1, doc_2, exclude_attrs=[]):
     if diff_d['update'] or diff_d['delete'] or diff_d['add']:
         return diff_d
 
-def two_docs_iterator(b1, b2, id_list, step = 10000):
+
+def two_docs_iterator(b1, b2, id_list, step=10000):
     t0 = time.time()
     n = len(id_list)
     for i in range(0, n, step):
         t1 = time.time()
-        print "Processing %d-%d documents..." % (i+1, min(i+step, n)) ,
+        print "Processing %d-%d documents..." % (i + 1, min(i + step, n)),
         _ids = id_list[i:i+step]
         iter1 = b1.mget_from_ids(_ids, asiter=True)
         iter2 = b2.mget_from_ids(_ids, asiter=True)
@@ -43,35 +46,38 @@ def two_docs_iterator(b1, b2, id_list, step = 10000):
 
 
 def _diff_doc_worker(args):
-    b1_target_collection, b2_es_index, ids, _path = args
+    #b1_target_collection, b2_es_index, ids, _path = args
+    _b1, _b2, ids, _path = args
     import sys
     if _path not in sys.path:
         sys.path.append(_path)
-    from databuild import backend
-    from utils.mongo import get_target_db
-    from utils.es import ESIndexer
     import utils.diff
     reload(utils.diff)
-    from utils.diff import _diff_doc_inner_worker
+    from utils.diff import _diff_doc_inner_worker, get_backend
 
-    target = get_target_db()
-    b1 = backend.GeneDocMongoDBBackend(target[b1_target_collection])
-    es_idxer = ESIndexer()
-    es_idxer.ES_INDEX_NAME = b2_es_index
-    b2 = backend.GeneDocESBackend(es_idxer)
+    b1 = get_backend(*_b1)
+    b2 = get_backend(*_b2)
     _updates = _diff_doc_inner_worker(b1, b2, ids)
     return _updates
 
 
-def _diff_doc_inner_worker(b1, b2, ids):
+def _diff_doc_inner_worker(b1, b2, ids, fastdiff=False):
+    '''if fastdiff is True, only compare the whole doc,
+       do not traverse into each attributes.
+    '''
     _updates = []
     for doc1, doc2 in two_docs_iterator(b1, b2, ids):
         assert doc1['_id'] == doc2['_id']
-        _diff = diff_doc(doc1, doc2)
-        if _diff:
-            _diff['_id'] = doc1['_id']
-            _updates.append(_diff)
+        if fastdiff:
+            if doc1 != doc2:
+                _updates.append({'_id': doc1['_id']})
+        else:
+            _diff = diff_doc(doc1, doc2)
+            if _diff:
+                _diff['_id'] = doc1['_id']
+                _updates.append(_diff)
     return _updates
+
 
 def diff_collections(b1, b2, use_parallel=True, step=10000):
     """
@@ -94,6 +100,7 @@ def diff_collections(b1, b2, use_parallel=True, step=10000):
     print "# of docs found in both collections:\t", len(id_common)
 
     print "Comparing matching docs..."
+    _updates = []
     if len(id_common) > 0:
         if not use_parallel:
             _updates = _diff_doc_inner_worker(b1, b2, list(id_common))
@@ -101,9 +108,12 @@ def diff_collections(b1, b2, use_parallel=True, step=10000):
             from utils.parallel import run_jobs_on_ipythoncluster
             _path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
             id_common = list(id_common)
-            b1_target_collection = b1.target_collection.name
-            b2_es_index = b2.target_esidxer.ES_INDEX_NAME
-            task_li = [(b1_target_collection, b2_es_index, id_common[i:i+step],_path) for i in range(0, len(id_common), step)]
+            #b1_target_collection = b1.target_collection.name
+            #b2_es_index = b2.target_esidxer.ES_INDEX_NAME
+            _b1 = (b1.target_name, b1.name)
+            _b2 = (b2.target_name, b2.name)
+            #task_li = [(b1_target_collection, b2_es_index, id_common[i: i + step], _path) for i in range(0, len(id_common), step)]
+            task_li = [(_b1, _b2, id_common[i: i + step], _path) for i in range(0, len(id_common), step)]
             job_results = run_jobs_on_ipythoncluster(_diff_doc_worker, task_li)
             _updates = []
             if job_results:
@@ -129,15 +139,14 @@ def diff_collections(b1, b2, use_parallel=True, step=10000):
     return changes
 
 
-def worker(args):
-    a, _path = args
-    import sys
-    if _path not in sys.path:
-        sys.path.append(_path)
-
-    from utils.diff import two_docs_iterator
-    from databuild import backend
-    import utils.diff
-    reload(utils.diff)
-    from utils.diff import _diff_doc_inner_worker
-    return dir(utils.diff)
+def get_backend(target_name, bk_type):
+    '''Return a backend instance for given target_name and backend type.
+        currently support MongoDB and ES backend.
+    '''
+    if bk_type == 'mongodb':
+        target_db = get_target_db()
+        target_col = target_db[target_name]
+        return GeneDocMongoDBBackend(target_col)
+    elif bk_type == 'es':
+        esi = ESIndexer(target_name)
+        return GeneDocESBackend(esi)
