@@ -75,6 +75,10 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
         """target_collection is a pymongo collection object."""
         self.target_collection = target_collection
 
+    @property
+    def target_name(self):
+        return self.target_collection.name
+
     def count(self):
         return self.target_collection.count()
 
@@ -105,7 +109,7 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
         '''
         _updates = {}
         _add_d = dict(diff.get('add', {}).items() + diff.get('update', {}).items())
-        if _add_d:
+        if _add_d or extra:
             if extra:
                 _add_d.update(extra)
             _updates['$set'] = _add_d
@@ -146,7 +150,7 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
 
     def remove_from_ids(self, ids, step=10000):
         for i in range(0, len(ids), step):
-            self.target_collection.remove({'_id': ids[i:i+step]})
+            self.target_collection.remove({'_id': {'$in': ids[i:i+step]}})
 
 
 class GeneDocESBackend(GeneDocBackendBase):
@@ -155,6 +159,10 @@ class GeneDocESBackend(GeneDocBackendBase):
     def __init__(self, esidxer=None):
         """esidxer is an instance of utils.es.ESIndexer class."""
         self.target_esidxer = esidxer
+
+    @property
+    def target_name(self):
+        return self.esidxer.ES_INDEX_NAME
 
     def prepare(self, update_mapping=True):
         self.target_esidxer.create_index()
