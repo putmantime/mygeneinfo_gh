@@ -162,7 +162,7 @@ class GeneDocESBackend(GeneDocBackendBase):
 
     @property
     def target_name(self):
-        return self.esidxer.ES_INDEX_NAME
+        return self.target_esidxer.ES_INDEX_NAME
 
     def prepare(self, update_mapping=True):
         self.target_esidxer.create_index()

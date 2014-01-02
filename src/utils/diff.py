@@ -67,7 +67,7 @@ def _diff_doc_inner_worker(b1, b2, ids, fastdiff=False):
     '''
     _updates = []
     for doc1, doc2 in two_docs_iterator(b1, b2, ids):
-        assert doc1['_id'] == doc2['_id']
+        assert doc1['_id'] == doc2['_id'], repr((ids, len(ids)))
         if fastdiff:
             if doc1 != doc2:
                 _updates.append({'_id': doc1['_id']})
@@ -139,7 +139,7 @@ def diff_collections(b1, b2, use_parallel=True, step=10000):
     return changes
 
 
-def get_backend(target_name, bk_type):
+def get_backend(target_name, bk_type, **kwargs):
     '''Return a backend instance for given target_name and backend type.
         currently support MongoDB and ES backend.
     '''
@@ -148,5 +148,5 @@ def get_backend(target_name, bk_type):
         target_col = target_db[target_name]
         return GeneDocMongoDBBackend(target_col)
     elif bk_type == 'es':
-        esi = ESIndexer(target_name)
+        esi = ESIndexer(target_name, **kwargs)
         return GeneDocESBackend(esi)

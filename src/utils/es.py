@@ -98,13 +98,13 @@ class ESIndexer(object):
 
         #Test if index exists
         try:
-            print "Opening index...", conn.open_index(index_name)
+            print "Opening index...", conn.indices.open_index(index_name)
         except NotFoundException:
             print 'Error: index "%s" does not exist. Create it first.' % index_name
             return -1
 
         try:
-            conn.get_mapping(index_type, index_name)
+            conn.indices.get_mapping(index_type, index_name)
             empty_mapping = False
         except ElasticSearchException:
             #if no existing mapping available for index_type
