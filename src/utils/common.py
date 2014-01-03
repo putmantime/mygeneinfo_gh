@@ -302,3 +302,22 @@ def iter_n(iterable, n):
         if not chunk:
             return
         yield chunk
+
+
+def send_s3_file(localfile, s3key, overwrite=False):
+    '''save a localfile to s3 bucket with the given key.
+       bucket is set via S3_BUCKET
+       it also save localfile's lastmodified time in s3 file's metadata
+    '''
+    from config import AWS_KEY, AWS_SECRET, S3_BUCKET
+    from boto import connect_s3
+
+    assert os.path.exists(localfile), 'localfile "{}" does not exist.'.format(localfile)
+    s3 = connect_s3(AWS_KEY, AWS_SECRET)
+    bucket = s3.get_bucket(S3_BUCKET)
+    k = bucket.new_key(s3key)
+    if not overwrite:
+        assert not k.exists(), 's3key "{}" already exists.'.format(s3key)
+    lastmodified = os.stat(localfile)[-2]
+    k.set_metadata('lastmodified', lastmodified)
+    k.set_contents_from_filename(localfile)
