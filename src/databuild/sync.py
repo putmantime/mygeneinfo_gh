@@ -134,6 +134,28 @@ class GeneDocSyncer:
         else:
             raise ValueError('must provide either "before" for "after" argument.')
 
+    def backup_timestamp(self, outfile=None, compress=True):
+        '''backup "_id" and "_timestamp" fields into a output file.'''
+        ts = time.strftime('%Y%m%d')
+        outfile = outfile or self._target_col.name + '_tsbk_' + ts + '.txt'
+        if compress:
+            outfile += '.bz'
+            import bz2
+        print('Backing up timestamps into "{}"...'.format(outfile))
+        file_handler = bz2.BZ2File if compress else file
+        with file_handler(outfile, 'w') as out_f:
+            for doc in doc_feeder(self._target_col, step=100000, fields=['_timestamp']):
+                out_f.write('{}\t{}\n'.format(doc['_id'], doc['_timestamp'].strftime('%Y%m%d')))
+
+    def get_timestamp_stats(self, returnresult=False):
+        '''Return the count of each timestamps in _target_col.'''
+        res = self._target_col.aggregate([{"$group": {"_id": "$_timestamp", "count": {"$sum": 1}}}])
+        res = sorted([(x['_id'], x['count']) for x in res['result']], reverse=True)
+        for ts, cnt in res:
+            print('{}\t{}'.format(ts.strftime('%Y%m%d'), cnt))
+        if returnresult:
+            return res
+
 
 def mark_timestamp(timestamp):
     #.update({'_id': {'$in': xli1}}, {'$set': {'_timestamp': ts}}, multi=True)
