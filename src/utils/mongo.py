@@ -69,13 +69,14 @@ def doc_feeder0(collection, step=1000, s=None, e=None, inbatch=False):
         print 'Done.[%s]' % timesofar(t0)
 
 
-def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None, batch_callback=None):
+def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None, batch_callback=None, fields=None):
     '''A iterator for returning docs in a collection, with batch query.
        additional filter query can be passed via "query", e.g.,
        doc_feeder(collection, query={'taxid': {'$in': [9606, 10090, 10116]}})
        batch_callback is a callback function as fn(cnt, t), called after every batch
+       fields is optional parameter passed to find to restrict fields to return.
     '''
-    cur = collection.find(query, timeout=False)
+    cur = collection.find(query, timeout=False, fields=fields)
     n = cur.count()
     s = s or 0
     e = e or n
