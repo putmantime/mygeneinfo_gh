@@ -220,6 +220,16 @@ class GeneDocESBackend(GeneDocBackendBase):
         res = conn.mget(ids, index_name, index_type)
         return iter(res) if asiter else res
 
+    def remove_from_ids(self, ids, step=10000):
+        conn = self.target_esidxer.conn
+        index_type = self.target_esidxer.ES_INDEX_TYPE
+        for i in range(0, len(ids), step):
+            for _id in ids[i:i+step]:
+                self.target_esidxer.delete_doc(index_type=index_type, id=_id, bulk=True)
+            conn.flush_bulk()
+        conn.flush()
+        conn.refresh()
+
 
 class GeneDocCouchDBBackend(GeneDocBackendBase):
     name = 'couchdb'
