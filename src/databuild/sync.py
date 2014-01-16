@@ -1,4 +1,7 @@
 from __future__ import print_function
+import sys
+import os
+import os.path
 import re
 from datetime import datetime
 import time
@@ -6,7 +9,8 @@ import time
 from utils.mongo import get_target_db, doc_feeder
 from .backend import GeneDocMongoDBBackend
 from utils.diff import diff_collections
-from utils.common import iter_n, timesofar
+from utils.common import iter_n, timesofar, LogPrint, dump, send_s3_file, ask, safewfile
+from config import LOG_FOLDER
 
 
 class GeneDocSyncer:
@@ -28,6 +32,16 @@ class GeneDocSyncer:
 
     def get_latest_source_col(self, n=-1):
         return self._db[self.get_source_list()[n]]
+
+    def get_new_source_list(self):
+        '''return a list of source collections have not be applied.'''
+        _li = []
+        target_latest_ts = self.get_target_latest_timestamp()
+        for src_coll_name in self.get_source_list():
+            _ts = _get_timestamp(src_coll_name)
+            if _ts > target_latest_ts:
+                _li.append(src_coll_name)
+        return _li
 
     def get_changes(self, source_col, use_parallel=True):
         target_col = self._target_col
@@ -142,19 +156,37 @@ class GeneDocSyncer:
             outfile += '.bz'
             import bz2
         print('Backing up timestamps into "{}"...'.format(outfile))
+        t0 = time.time()
         file_handler = bz2.BZ2File if compress else file
         with file_handler(outfile, 'w') as out_f:
             for doc in doc_feeder(self._target_col, step=100000, fields=['_timestamp']):
                 out_f.write('{}\t{}\n'.format(doc['_id'], doc['_timestamp'].strftime('%Y%m%d')))
+        print("Done.", timesofar(t0))
+        return outfile
 
-    def get_timestamp_stats(self, returnresult=False):
+    def get_timestamp_stats(self, returnresult=False, verbose=True):
         '''Return the count of each timestamps in _target_col.'''
         res = self._target_col.aggregate([{"$group": {"_id": "$_timestamp", "count": {"$sum": 1}}}])
         res = sorted([(x['_id'], x['count']) for x in res['result']], reverse=True)
-        for ts, cnt in res:
-            print('{}\t{}'.format(ts.strftime('%Y%m%d'), cnt))
+        if verbose:
+            for ts, cnt in res:
+                print('{}\t{}'.format(ts.strftime('%Y%m%d'), cnt))
         if returnresult:
             return res
+
+    def get_target_latest_timestamp_0(self):
+        ts_stats = self.get_timestamp_stats(returnresult=True, verbose=False)
+        ts_stats.sort(reverse=True)
+        latest_ts = ts_stats[0][0]
+        assert ts_stats[0][1] > 0
+        return latest_ts
+
+    def get_target_latest_timestamp(self):
+        cur = self._target_col.find(fields=['_timestamp']).sort([('_timestamp', -1)]).limit(1)
+        doc = cur.next()
+        cur.close()
+        latest_ts = doc['_timestamp']
+        return latest_ts
 
 
 def mark_timestamp(timestamp):
@@ -169,11 +201,12 @@ def mark_timestamp(timestamp):
                            upsert=False, w=0)
 
 
-def _get_timestamp(source_col):
+def _get_timestamp(source_col, as_str=False):
     mat = re.search('_(\d{8})_\w{8}$', source_col)
     if mat:
         _timestamp = mat.group(1)
-        _timestamp = datetime.strptime(_timestamp, '%Y%m%d')
+        if not as_str:
+            _timestamp = datetime.strptime(_timestamp, '%Y%m%d')
         return _timestamp
 
 
@@ -200,3 +233,76 @@ def diff_two(col_1, col_2, use_parallel=True):
     b1 = GeneDocMongoDBBackend(target[col_1])
     b2 = GeneDocMongoDBBackend(target[col_2])
     return diff_collections(b1, b2, use_parallel=use_parallel)
+
+
+def backup_timestamp_main():
+    for config in ['genedoc_mygene', 'genedoc_mygene_allspecies']:
+        sc = GeneDocSyncer(config)
+        bkfile = sc.backup_timestamp()
+        bkfile_key = 'genedoc_timestamp_bk/' + bkfile
+        print('Saving to S3: "{}"... '.format(bkfile_key), end='')
+        send_s3_file(bkfile, bkfile_key)
+        print('Done.')
+        os.remove(bkfile)
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] == 'backup_timestamp':
+        backup_timestamp_main()
+        return
+
+    if len(sys.argv) > 1:
+        config = sys.argv[1]
+    else:
+        config = 'mygene'
+        #config = 'mygene_allspecies'
+    if not config.startswith('genedoc_'):
+        config = 'genedoc_' + config
+    assert config in ['genedoc_mygene', 'genedoc_mygene_allspecies']
+    use_parallel = '-p' in sys.argv
+    no_confirm = '-b' in sys.argv
+
+    t0 = time.time()
+    sc = GeneDocSyncer(config)
+    new_src_li = sc.get_new_source_list()
+    if not new_src_li:
+        print("No new source collections need to update. Abort now.")
+        return
+
+    print("Found {} new source collections need to update:".format(len(new_src_li)))
+    print("\n".join(['\t' + x for x in new_src_li]))
+
+    if no_confirm or ask('Continue?') == 'Y':
+        logfile = 'databuild_sync_{}_{}.log'.format(config, time.strftime('%Y%m%d'))
+        log_f, logfile = safewfile(os.path.join(LOG_FOLDER, logfile), prompt=False, default='O')
+        sys.stdout = LogPrint(log_f, timestamp=True)
+
+        for src in new_src_li:
+            t0 = time.time()
+            print("Current source collection:", src)
+            ts = _get_timestamp(src, as_str=True)
+            print("Calculating changes... ")
+            changes = sc.get_changes(src, use_parallel=use_parallel)
+            print("Done")
+            get_changes_stats(changes)
+            if no_confirm or ask("Continue to save changes...") == 'Y':
+                if config == 'genedoc_mygene':
+                    dumpfile = 'changes_{}.pyobj'.format(ts)
+                else:
+                    dumpfile = 'changes_{}_allspecies.pyobj'.format(ts)
+                dump(changes, dumpfile)
+                dumpfile_key = 'genedoc_changes/' + dumpfile
+                print('Saving to S3: "{}"... '.format(dumpfile_key), end='')
+                send_s3_file(dumpfile, dumpfile_key)
+                print('Done.')
+                os.remove(dumpfile)
+
+            if no_confirm or ask("Continue to apply changes...") == 'Y':
+                sc.apply_changes(changes)
+                sc.verify_changes(changes)
+            print('='*20)
+            print("Finished.", timesofar(t0))
+
+
+if __name__ == '__main__':
+    main()
