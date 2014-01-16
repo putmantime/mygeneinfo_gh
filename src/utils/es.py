@@ -350,25 +350,27 @@ class ESIndexer(object):
             cnt = sum(job_results)
             return cnt
 
-    def get_id_list(self, index_type=None, index_name=None, step=100000, verbose=True):
-        '''return a list of all doc ids in an index_type.'''
+    def doc_feeder(self, index_type=None, index_name=None, step=10000, verbose=True, **kwargs):
         conn = self.conn
         index_name = index_name or self.ES_INDEX_NAME
         index_type = index_type or self.ES_INDEX_TYPE
 
-        id_li = []
         q = MatchAllQuery()
+        n = self.count()['count']
+        cnt = 0
+        t0 = time.time()
         if verbose:
-            n = self.count()['count']
             print '\ttotal docs: {}'.format(n)
             print '\t1-{}...'.format(step),
             i = step
             t1 = time.time()
 
         res = conn.search_raw(q, indices=index_name, doc_types=index_type,
-                              size=step, scan=True, scroll='10m', fields=[])
-        id_li.extend([doc['_id'] for doc in res.hits.hits])
-
+                              size=step, scan=True, scroll='10m', **kwargs)
+        #id_li.extend([doc['_id'] for doc in res.hits.hits])
+        for doc in res.hits.hits:
+            yield doc
+            cnt += 1
         if verbose:
             print 'done.[%.1f%%,%s]' % (i*100./n, timesofar(t1))
         while 1:
@@ -380,12 +382,22 @@ class ESIndexer(object):
             if len(res.hits.hits) == 0:
                 break
             else:
-                id_li.extend([doc['_id'] for doc in res.hits.hits])
+                #id_li.extend([doc['_id'] for doc in res.hits.hits])
+                for doc in res.hits.hits:
+                    yield doc
+                    cnt += 1
                 if verbose:
                     i += step
                     print 'done.[%.1f%%,%s]' % (min(i, n)*100./n, timesofar(t1))
 
-        assert len(id_li) == n, "Error: scroll query terminated early, please retry.\nLast response:\n"+str(res)
+        if verbose:
+            print "Finished! [{}]".format(timesofar(t0))
+
+        assert cnt == n, "Error: scroll query terminated early, please retry.\nLast response:\n"+str(res)
+
+    def get_id_list(self, index_type=None, index_name=None, step=100000, verbose=True):
+        cur = self.doc_feeder(index_type=index_type, index_name=index_name, step=step, fields=[], verbose=verbose)
+        id_li = [doc['_id'] for doc in cur]
         return id_li
 
     def get_id_list_parallel(self, taxid_li, index_type=None, index_name=None, step=1000, verbose=True):
