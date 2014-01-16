@@ -40,6 +40,7 @@ def lastexception():
         excArgs = ()
     return str(exc_type)+':'+''.join([str(x) for x in excArgs])
 
+
 class ESIndexer(object):
     def __init__(self, es_index_name=None, es_index_type=None, mapping=None, es_host=None, step=5000):
         self.conn = get_es(es_host)
@@ -133,7 +134,7 @@ class ESIndexer(object):
         index_type = self.ES_INDEX_TYPE
 
         if isinstance(meta, dict) and meta.keys() == ['_meta']:
-            print self.conn.put_mapping(index_type, meta, [index_name])
+            print self.conn.indices.put_mapping(index_type, meta, [index_name])
         else:
             raise ValueError('Input "meta" should have and only have "_meta" field.')
 
@@ -156,9 +157,9 @@ class ESIndexer(object):
         '''
         return self.conn.index(doc, self.ES_INDEX_NAME, self.ES_INDEX_TYPE, id=id, bulk=bulk)
 
-    def delete_doc(self, index_type, id):
+    def delete_doc(self, index_type, id, bulk=False):
         '''delete a doc from the index based on passed id.'''
-        return self.conn.delete(self.ES_INDEX_NAME, index_type, id)
+        return self.conn.delete(self.ES_INDEX_NAME, index_type, id, bulk=bulk)
 
     def update(self, id, extra_doc, index_type=None, bulk=False):
         '''update an existing doc with extra_doc.'''
@@ -224,11 +225,13 @@ class ESIndexer(object):
         self.verify_mapping(update_mapping=update_mapping)
         #update some settings for bulk indexing
         conn.indices.update_settings(index_name, {
-            "refresh_interval": "-1",              # disable refresh temporarily
+            #"refresh_interval": "-1",              # disable refresh temporarily
             # "index.store.compress.stored": True,    # store-level compression    #no need to set it since ES v0.90
             # "index.store.compress.tv": True,        # store-level compression
-            # "auto_expand_replicas": "0-all",
-            "number_of_replicas": 0,
+            "auto_expand_replicas": "0-all",
+            #"number_of_replicas": 0,
+            "refresh_interval": "30s",
+
         })
         try:
             print "Building index..."
@@ -384,6 +387,45 @@ class ESIndexer(object):
 
         assert len(id_li) == n, "Error: scroll query terminated early, please retry.\nLast response:\n"+str(res)
         return id_li
+
+    def get_id_list_parallel(self, taxid_li, index_type=None, index_name=None, step=1000, verbose=True):
+        '''return a list of all doc ids in an index_type.'''
+        from utils.parallel import run_jobs_on_ipythoncluster
+
+        def _get_ids_worker(args):
+            from utils.es import ESIndexer
+            from pyes import MatchAllQuery
+            es_kwargs, start, step = args
+            q = MatchAllQuery().search()
+            q.sort = [{'entrezgene': 'asc'}, {'ensembl.gene': 'asc'}]
+            q.fields = []
+            q.start = start
+            q.size = step
+            esi = ESIndexer(**es_kwargs)
+            cnt = esi.count()['count']
+            res = esi.conn.search_raw(q)
+            assert res['hits']['total'] == cnt
+            return [doc['_id'] for doc in res['hits']['hits']]
+
+        def _get_ids_worker_by_taxid(args):
+            from utils.es import ESIndexer
+            from pyes import TermQuery
+            es_kwargs, taxid, step = args
+            q = TermQuery()
+            q.add('taxid', taxid)
+            q.fields = []
+            q.size = step
+            esi = ESIndexer(**es_kwargs)
+            res = esi.conn.search(q)
+            xli = [doc['_id'] for doc in res]
+            assert len(xli) == res.total
+            return xli
+
+        es_kwargs = {'es_index_name': self.ES_INDEX_NAME, 'es_host': 'su02:9200'}
+        task_li = [(es_kwargs, taxid, step) for taxid in taxid_li]
+        #print task_li
+        job_results = run_jobs_on_ipythoncluster(_get_ids_worker_by_taxid, task_li)
+        return job_results
 
     #def add_docs(self, docs, step=1000):
     def add_docs(self, docs):
