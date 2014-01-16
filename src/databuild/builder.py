@@ -250,7 +250,8 @@ class DataBuilder():
                       'total_ensembl_only_genes': cnt_ensembl_only_genes,
                       'total_genes': len(geneid_set)}
             self._stats = _stats
-            self.log_src_build({'stats': _stats})
+            self._src_version = self.get_src_version()
+            self.log_src_build({'stats': _stats, 'src_version': self._src_version})
             return  geneid_set
 
     def get_idmapping_d(self, src):
@@ -771,7 +772,7 @@ class DataBuilder():
     def build_index2(self, build_config='mygene_allspecies', last_build_idx=-1, use_parallel=False, es_host=None, es_index_name=None):
         """Build ES index from last successfully-merged mongodb collection.
             optional "es_host" argument can be used to specified another ES host, otherwise default ES_HOST.
-            optional "es_index_name" argument can be used to pass an alternative index name, otherwise same as mongodb collection name 
+            optional "es_index_name" argument can be used to pass an alternative index name, otherwise same as mongodb collection name
         """
         from pprint import pprint
         self.load_build_config(build_config)
@@ -788,6 +789,7 @@ class DataBuilder():
         assert last_build.get('target', None), \
                 'Abort. Last build target_collection is not available.'
         target_collection = last_build['target']
+        #target_collection = "genedoc_{}_current".format(build_config)  ######
         _db = get_target_db()
         target_collection = _db[target_collection]
         print
