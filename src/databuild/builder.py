@@ -50,14 +50,15 @@ Build_Config = {
 }
 '''
 
+
 class DataBuilder():
 
     def __init__(self, build_config=None, backend='mongodb'):
         self.src = get_src_db()
         self.step = 10000
         self.use_parallel = False
-        self.merge_logging = True     #save output into a logging file when merge is called.
-        self.max_build_status = 10    #max no. of records kept in "build" field of src_build collection.
+        self.merge_logging = True     # save output into a logging file when merge is called.
+        self.max_build_status = 10    # max no. of records kept in "build" field of src_build collection.
 
         self.using_ipython_cluster = False
         self.shutdown_ipengines_after_done = False
@@ -176,7 +177,7 @@ class DataBuilder():
         #filter out those deprecated entrez gene ids
         print len(ensembl2entrez_li)
         ensembl2entrez_li = [(ensembl_id, self._entrez_geneid_d[int(entrez_id)]) for (ensembl_id, entrez_id) in ensembl2entrez_li
-                                                     if int(entrez_id) in self._entrez_geneid_d]
+                             if int(entrez_id) in self._entrez_geneid_d]
         print len(ensembl2entrez_li)
         ensembl2entrez = list2dict(ensembl2entrez_li, 0)
         self._idmapping_d_cache['ensembl_gene'] = ensembl2entrez
@@ -252,7 +253,7 @@ class DataBuilder():
             self._stats = _stats
             self._src_version = self.get_src_version()
             self.log_src_build({'stats': _stats, 'src_version': self._src_version})
-            return  geneid_set
+            return geneid_set
 
     def get_idmapping_d(self, src):
         if src in self._idmapping_d_cache:
@@ -307,13 +308,13 @@ class DataBuilder():
         print "Last build record:"
         pprint(last_build)
         assert last_build['status'] == 'building', \
-               "Abort. Last build does not need to be resumed."
+            "Abort. Last build does not need to be resumed."
         assert at_collection in self._build_config['sources'], \
-               'Abort. Cannot resume merging from a unknown collection "{}"'.format(at_collection)
+            'Abort. Cannot resume merging from a unknown collection "{}"'.format(at_collection)
         assert last_build['target_backend'] == self.target.name, \
-               'Abort. Re-initialized DataBuilder class using matching backend "{}"'.format(last_build['backend'])
+            'Abort. Re-initialized DataBuilder class using matching backend "{}"'.format(last_build['backend'])
         assert last_build.get('stats', None), \
-               'Abort. Intital build stats are not available. You should restart the build from the scratch.'
+            'Abort. Intital build stats are not available. You should restart the build from the scratch.'
         self._stats = last_build['stats']
 
         if ask('Continue to resume merging from "{}"?'.format(at_collection)) == 'Y':
@@ -338,15 +339,15 @@ class DataBuilder():
     def _merge_ipython_cluster(self, step=100000):
         '''Do the merging on ipython cluster.'''
         from IPython.parallel import Client, require
-        from config import CLUSTER_MONGODB_SERVER, CLUSTER_CLIENT_JSON
+        from config import CLUSTER_CLIENT_JSON
 
         t0 = time.time()
         src_collection_list = [collection for collection in self._build_config['sources']
-                                    if collection not in ['entrez_gene', 'ensembl_gene']]
+                               if collection not in ['entrez_gene', 'ensembl_gene']]
 
         self.target.drop()
         self.target.prepare()
-        geneid_set = self.make_genedoc_root()
+        #geneid_set = self.make_genedoc_root()
 
         idmapping_gridfs_d = self._save_idmapping_gridfs()
 
@@ -359,7 +360,6 @@ class DataBuilder():
         kwargs = {}
         target_collection = self.target.target_collection
         kwargs['server'] = target_collection.database.connection.host
-        #kwargs['server'] = CLUSTER_MONGODB_SERVER
         kwargs['port'] = target_collection.database.connection.port
         kwargs['src_db'] = self.src.name
         kwargs['target_db'] = target_collection.database.name
@@ -423,13 +423,13 @@ class DataBuilder():
                     _id = doc['_id']
                     if idmapping_d:
                         _id = idmapping_d.get(_id, None) or _id
-                    for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+                    for __id in alwayslist(_id):    # there could be cases that idmapping returns multiple entrez_gene ids.
                         __id = str(__id)
                         doc.pop('_id', None)
                         doc.pop('taxid', None)
                         target_collection.update({'_id': __id}, {'$set': doc},
-                                                  manipulate=False,
-                                                  upsert=False)
+                                                 manipulate=False,
+                                                 upsert=False)
             finally:
                 cur.close()
 
@@ -482,7 +482,7 @@ class DataBuilder():
             src_cnt += 1
 
             id_type = self.src_master[collection].get('id_type', None)
-            flag_need_id_conversion =  id_type is not None
+            flag_need_id_conversion = id_type is not None
             if flag_need_id_conversion:
                 idmapping_d = self.get_idmapping_d(id_type)
             else:
@@ -492,7 +492,7 @@ class DataBuilder():
                 if self.use_parallel:
                     self.doc_queue = []
                     self._merge_parallel_ipython(collection, geneid_set,
-                                         step=step, idmapping_d=idmapping_d)
+                                                 step=step, idmapping_d=idmapping_d)
                 else:
                     self._merge_sequential(collection, geneid_set,
                                            step=step, idmapping_d=idmapping_d)
@@ -503,7 +503,7 @@ class DataBuilder():
             _id = doc['_id']
             if idmapping_d:
                 _id = idmapping_d.get(_id, None) or _id
-            for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+            for __id in alwayslist(_id):    # there could be cases that idmapping returns multiple entrez_gene ids.
                 __id = str(__id)
                 if __id in geneid_set:
                     doc.pop('_id', None)
@@ -536,12 +536,11 @@ class DataBuilder():
         for i in range(NUMBER_OF_PROCESSES):
             Process(target=worker, args=(input_queue, self.target)).start()
 
-
         for doc in doc_feeder(self.src[collection], step=step):
             _id = doc['_id']
             if idmapping_d:
                 _id = idmapping_d.get(_id, None) or _id
-            for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+            for __id in alwayslist(_id):    # there could be cases that idmapping returns multiple entrez_gene ids.
                 __id = str(__id)
                 if __id in geneid_set:
                     doc['_id'] = __id
@@ -564,12 +563,10 @@ class DataBuilder():
         dview['database'] = target_collection.database.name
         dview['collection_name'] = target_collection.name
 
-
         def partition(lst, n):
             q, r = divmod(len(lst), n)
             indices = [q*i + min(i, r) for i in xrange(n+1)]
             return [lst[indices[i]:indices[i+1]] for i in xrange(n)]
-
 
         @require('mongokit', 'time')
         def worker(doc_li):
@@ -581,21 +578,21 @@ class DataBuilder():
                 __id = doc.pop('_id')
                 doc.pop('taxid', None)
                 target_collection.update({'_id': __id}, {'$set': doc},
-                                          manipulate=False,
-                                          upsert=False) #,safe=True)
+                                         manipulate=False,
+                                         upsert=False)  # ,safe=True)
             print 'Done. [%.1fs]' % (time.time()-t0)
 
         for doc in doc_feeder(self.src[collection], step=step):
             _id = doc['_id']
             if idmapping_d:
                 _id = idmapping_d.get(_id, None) or _id
-            for __id in alwayslist(_id):    #there could be cases that idmapping returns multiple entrez_gene ids.
+            for __id in alwayslist(_id):    # there could be cases that idmapping returns multiple entrez_gene ids.
                 __id = str(__id)
                 if __id in geneid_set:
                     doc['_id'] = __id
                     self.doc_queue.append(doc)
 
-                    if len(self.doc_queue)>=step:
+                    if len(self.doc_queue) >= step:
                         #dview.scatter('doc_li', self.doc_queue)
                         #dview.apply_async(worker)
                         dview.map_async(worker, partition(self.doc_queue, len(rc.ids)))
@@ -665,7 +662,7 @@ class DataBuilder():
         src_master = get_src_master(self.src.connection)
         for collection in self._build_config['sources']:
             meta = src_master.get_from_id(collection)
-            if meta.has_key('mapping'):
+            if 'mapping' in meta:
                 mapping.update(meta['mapping'])
             else:
                 print 'Warning: "%s" collection has no mapping data.' % collection
@@ -705,7 +702,9 @@ class DataBuilder():
 
     def validate(self, build_config='mygene_allspecies', n=10):
         '''Validate merged genedoc, currently for ES backend only.'''
-        import random, itertools, pyes
+        import random
+        import itertools
+        import pyes
         from pprint import pprint
 
         self.load_build_config(build_config)
@@ -752,7 +751,6 @@ class DataBuilder():
                             continue
                         assert es_doc.get(k, None) == doc[k], (_id, k, es_doc.get(k, None), doc[k])
 
-
     def build_index(self, use_parallel=True):
         target_collection = self.get_target_collection()
         if target_collection:
@@ -780,14 +778,14 @@ class DataBuilder():
         print "Last build record:"
         pprint(last_build)
         assert last_build['status'] == 'success', \
-               "Abort. Last build did not success."
+            "Abort. Last build did not success."
         assert last_build['target_backend'] == "mongodb", \
-               'Abort. Last build need to be built using "mongodb" backend.'
+            'Abort. Last build need to be built using "mongodb" backend.'
         assert last_build.get('stats', None), \
-               'Abort. Last build stats are not available.'
+            'Abort. Last build stats are not available.'
         self._stats = last_build['stats']
         assert last_build.get('target', None), \
-                'Abort. Last build target_collection is not available.'
+            'Abort. Last build target_collection is not available.'
         target_collection = last_build['target']
         #target_collection = "genedoc_{}_current".format(build_config)  ######
         _db = get_target_db()
@@ -806,17 +804,17 @@ class DataBuilder():
         es_index_name = es_index_name or target_collection.name
         es_idxer = ESIndexer(mapping=_mapping,
                              es_index_name=es_index_name,
-                             es_host = es_host,
+                             es_host=es_host,
                              step=5000)
         if build_config == 'mygene_allspecies':
-            es_idxer.number_of_shards = 10   #default 5
+            es_idxer.number_of_shards = 10   # default 5
         print "ES host:", es_idxer.conn.servers[0].geturl()
         print "ES index:", es_index_name
         if ask("Continue to build ES index?") == 'Y':
             es_idxer.use_parallel = use_parallel
             #es_idxer.s = 609000
             if es_idxer.conn.indices.exists_index(es_idxer.ES_INDEX_NAME):
-                if ask('Index "{}" exists. Delete?'.format(es_idxer.ES_INDEX_NAME)) == 'Y':\
+                if ask('Index "{}" exists. Delete?'.format(es_idxer.ES_INDEX_NAME)) == 'Y':
                     es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
                 else:
                     print "Abort."
@@ -860,5 +858,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
