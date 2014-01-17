@@ -67,14 +67,17 @@ class ESIndexer(object):
 
     def create_index(self):
         try:
-            print self.conn.open_index(self.ES_INDEX_NAME)
+            print self.conn.indices.open_index(self.ES_INDEX_NAME)
         except IndexMissingException:
-            print self.conn.create_index(self.ES_INDEX_NAME, settings={
+            print self.conn.indices.create_index(self.ES_INDEX_NAME, settings={
                 "number_of_shards": self.number_of_shards,
                 "number_of_replicas": 0,    # set this to 0 to boost indexing
                                             # after indexing, set "auto_expand_replicas": "0-all",
                                             #   to make additional replicas.
             })
+
+    def exists_index(self, index):
+        return self.conn.indices.exists_index(index)
 
     def delete_index_type(self, index_type, noconfirm=False):
         '''Delete all indexes for a given index_type.'''
@@ -125,9 +128,9 @@ class ESIndexer(object):
                 print "\n\tRemoving existing mapping...",
                 print conn.delete_mapping(index_name, index_type)
             _mapping = self.get_field_mapping()
-            print conn.put_mapping(index_type,
-                                   _mapping,
-                                   [index_name])
+            print conn.indices.put_mapping(index_type,
+                                           _mapping,
+                                           [index_name])
 
     def update_mapping_meta(self, meta):
         index_name = self.ES_INDEX_NAME
@@ -350,12 +353,12 @@ class ESIndexer(object):
             cnt = sum(job_results)
             return cnt
 
-    def doc_feeder(self, index_type=None, index_name=None, step=10000, verbose=True, **kwargs):
+    def doc_feeder(self, index_type=None, index_name=None, step=10000, verbose=True, query=None, **kwargs):
         conn = self.conn
         index_name = index_name or self.ES_INDEX_NAME
         index_type = index_type or self.ES_INDEX_TYPE
 
-        q = MatchAllQuery()
+        q = query if query else MatchAllQuery()
         n = self.count()['count']
         cnt = 0
         t0 = time.time()
@@ -465,6 +468,56 @@ class ESIndexer(object):
         assert _cnt == len(ids), "Error: {}!={}. Double check ids for deletion.".format(_cnt, len(ids))
 
         print self.conn.delete_by_query(self.ES_INDEX_NAME, self.ES_INDEX_TYPE, _q)
+
+    def clone_index(self, src_index, target_index, target_es_host=None, target_index_settings=None):
+        '''clone src_index to target_index on the same es_host, or another one given
+           by target_es_host.
+        '''
+        t0 = time.time()
+        target_es = self or ESIndexer(es_host=target_es_host)
+        if not self.exists_index(src_index):
+            print 'Error! src_index "{}" does not exist.'.format(src_index)
+            return
+        if target_es.exists_index(target_index):
+            print 'Error! target_index "{}" already exists.'.format(target_index)
+            return
+        _idx_settings = self.conn.indices.get_settings(src_index)[src_index]['settings']
+        idx_settings = {}
+        for k, v in _idx_settings.items():
+            if k.startswith('index.'):
+                k = k[6:]
+                if k not in ['uuid', 'version.created']:
+                    idx_settings[k] = v
+        if target_index_settings:
+            idx_settings.update(target_index_settings)
+        idx_settings["refresh_interval"] = "60s"
+        print target_es.conn.indices.create_index(target_index, settings=idx_settings)
+        idx_mapping = self.conn.indices.get_mapping(indices=src_index, raw=True)
+        type_list = idx_mapping[src_index].keys()
+        print "Building indexing..."
+        cnt = 0
+        for _type in type_list:
+            print "\ttype:", _type
+            print target_es.conn.indices.put_mapping(doc_type=_type, mapping=idx_mapping[src_index][_type], indices=target_index)
+            for doc in self.doc_feeder(_type, src_index):
+                target_es.conn.index(doc['_source'], target_index, _type, doc['_id'], bulk=True)
+                cnt += 1
+            print target_es.conn.indices.flush()
+            print target_es.conn.indices.refresh()
+        target_es.conn.indices.update_settings(target_index, {
+            "refresh_interval": "1s",              # default settings
+        })
+        print 'Done! - {} docs indexed. [{}]'.format(cnt, timesofar(t0))
+        print "Optimizing...", target_es.conn.indices.optimize(target_index,
+                                                               wait_for_merge=True,
+                                                               max_num_segments=5)
+        print "Validating...",
+        src_cnt = self.conn.count(indices=src_index)['count']
+        target_cnt = target_es.conn.count(indices=target_index)['count']
+        if src_cnt == target_cnt:
+            print "OK [total count={}]".format(target_cnt)
+        else:
+            print "\nWarning: total count of gene documents does not match [{}, should be {}]".format(target_cnt, src_cnt)
 
 
 def es_clean_indices(keep_last=2, es_host=None, verbose=True, noconfirm=False, dryrun=False):
