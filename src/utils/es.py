@@ -353,7 +353,7 @@ class ESIndexer(object):
             cnt = sum(job_results)
             return cnt
 
-    def doc_feeder(self, index_type=None, index_name=None, step=10000, verbose=True, query=None, **kwargs):
+    def doc_feeder(self, index_type=None, index_name=None, step=10000, verbose=True, query=None, scroll='10m', **kwargs):
         conn = self.conn
         index_name = index_name or self.ES_INDEX_NAME
         index_type = index_type or self.ES_INDEX_TYPE
@@ -369,7 +369,7 @@ class ESIndexer(object):
             t1 = time.time()
 
         res = conn.search_raw(q, indices=index_name, doc_types=index_type,
-                              size=step, scan=True, scroll='10m', **kwargs)
+                              size=step, scan=True, scroll=scroll, **kwargs)
         #id_li.extend([doc['_id'] for doc in res.hits.hits])
         for doc in res.hits.hits:
             yield doc
@@ -381,7 +381,7 @@ class ESIndexer(object):
                 t1 = time.time()
                 if i < n:
                     print '\t{}-{}...'.format(i+1, min(i+step, n)),
-            res = conn.search_scroll(res._scroll_id, scroll='10m')
+            res = conn.search_scroll(res._scroll_id, scroll=scroll)
             if len(res.hits.hits) == 0:
                 break
             else:
@@ -469,7 +469,8 @@ class ESIndexer(object):
 
         print self.conn.delete_by_query(self.ES_INDEX_NAME, self.ES_INDEX_TYPE, _q)
 
-    def clone_index(self, src_index, target_index, target_es_host=None, target_index_settings=None):
+    def clone_index(self, src_index, target_index, target_es_host=None, step=10000, scroll='10m',
+                    target_index_settings=None, number_of_shards=None):
         '''clone src_index to target_index on the same es_host, or another one given
            by target_es_host.
         '''
@@ -490,6 +491,8 @@ class ESIndexer(object):
                     idx_settings[k] = v
         if target_index_settings:
             idx_settings.update(target_index_settings)
+        if number_of_shards:
+            idx_settings['number_of_shards'] = number_of_shards
         idx_settings["refresh_interval"] = "60s"
         print target_es.conn.indices.create_index(target_index, settings=idx_settings)
         idx_mapping = self.conn.indices.get_mapping(indices=src_index, raw=True)
@@ -499,7 +502,7 @@ class ESIndexer(object):
         for _type in type_list:
             print "\ttype:", _type
             print target_es.conn.indices.put_mapping(doc_type=_type, mapping=idx_mapping[src_index][_type], indices=target_index)
-            for doc in self.doc_feeder(_type, src_index):
+            for doc in self.doc_feeder(_type, src_index, step=step, scroll=scroll):
                 target_es.conn.index(doc['_source'], target_index, _type, doc['_id'], bulk=True)
                 cnt += 1
             print target_es.conn.indices.flush()
