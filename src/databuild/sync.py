@@ -295,7 +295,7 @@ def main():
                 print('Saving to S3: "{}"... '.format(dumpfile_key), end='')
                 send_s3_file(dumpfile, dumpfile_key)
                 print('Done.')
-                os.remove(dumpfile)
+                #os.remove(dumpfile)
 
             if no_confirm or ask("Continue to apply changes...") == 'Y':
                 sc.apply_changes(changes)
