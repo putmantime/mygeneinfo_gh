@@ -654,7 +654,7 @@ class DataBuilder():
         else:
             print "Found no target collections."
 
-    def get_mapping(self):
+    def get_mapping(self, enable_timestamp=True):
         '''collect mapping data from data sources.
            This is for GeneDocESBackend only.
         '''
@@ -668,6 +668,11 @@ class DataBuilder():
                 print 'Warning: "%s" collection has no mapping data.' % collection
         mapping = {"properties": mapping,
                    "dynamic": False}
+        if enable_timestamp:
+            mapping['_timestamp'] = {
+                "enabled": True,
+                "path": "_timestamp"
+            }
         #allow source Compression
         #Note: no need of source compression due to "Store Level Compression"
         #mapping['_source'] = {'compress': True,}
@@ -786,8 +791,8 @@ class DataBuilder():
         self._stats = last_build['stats']
         assert last_build.get('target', None), \
             'Abort. Last build target_collection is not available.'
-        target_collection = last_build['target']
-        #target_collection = "genedoc_{}_current".format(build_config)  ######
+        #target_collection = last_build['target']
+        target_collection = "genedoc_{}_current".format(build_config)  ######
         _db = get_target_db()
         target_collection = _db[target_collection]
         print
@@ -799,6 +804,8 @@ class DataBuilder():
             _meta['src_version'] = src_version
         if getattr(self, '_stats', None):
             _meta['stats'] = self._stats
+        if 'timestamp' in last_build:
+            _meta['timestamp'] = last_build['timestamp']
         if _meta:
             _mapping['_meta'] = _meta
         es_index_name = es_index_name or target_collection.name
