@@ -33,7 +33,7 @@ __sources_dict__ = {
     'uniprot': [
               'uniprot',
               'uniprot.uniprot_pdb',
-              'uniprot.uniprot_ipi',
+              # 'uniprot.uniprot_ipi',   # IPI is now discontinued, last update is still in the db, but won't be updated.
               'uniprot.uniprot_pir'],
     'pharmgkb': ['pharmgkb'],
     'reporter': ['reporter'],
