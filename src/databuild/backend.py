@@ -177,8 +177,8 @@ class GeneDocESBackend(GeneDocBackendBase):
         index_type = self.target_esidxer.ES_INDEX_TYPE
         for doc in doc_li:
             conn.index(doc, index_name, index_type, doc['_id'], bulk=True)
-        conn.flush()
-        conn.refresh()
+        conn.indices.flush()
+        conn.indices.refresh()
 
     def update(self, id, extra_doc):
         self.target_esidxer.update(id, extra_doc, bulk=True)
@@ -199,8 +199,8 @@ class GeneDocESBackend(GeneDocBackendBase):
 
     def finalize(self):
         conn = self.target_esidxer.conn
-        conn.flush()
-        conn.refresh()
+        conn.indices.flush()
+        conn.indices.refresh()
         self.target_esidxer.optimize()
 
     def get_id_list(self):
@@ -227,8 +227,8 @@ class GeneDocESBackend(GeneDocBackendBase):
             for _id in ids[i:i+step]:
                 self.target_esidxer.delete_doc(index_type=index_type, id=_id, bulk=True)
             conn.flush_bulk()
-        conn.flush()
-        conn.refresh()
+        conn.indices.flush()
+        conn.indices.refresh()
 
 
 class GeneDocCouchDBBackend(GeneDocBackendBase):
