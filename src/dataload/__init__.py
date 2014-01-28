@@ -14,34 +14,36 @@ from config import DATA_SRC_DATABASE, DATA_SRC_MASTER_COLLECTION
 
 __sources_dict__ = {
     'entrez': [
-              'entrez.entrez_gene',
-              'entrez.entrez_homologene',
-              'entrez.entrez_genesummary',
-              'entrez.entrez_accession',
-              'entrez.entrez_refseq',
-              'entrez.entrez_unigene',
-              'entrez.entrez_go',
-              'entrez.entrez_ec',
-              'entrez.entrez_retired',
-              'entrez.entrez_generif'],
+        'entrez.entrez_gene',
+        'entrez.entrez_homologene',
+        'entrez.entrez_genesummary',
+        'entrez.entrez_accession',
+        'entrez.entrez_refseq',
+        'entrez.entrez_unigene',
+        'entrez.entrez_go',
+        'entrez.entrez_ec',
+        'entrez.entrez_retired',
+        'entrez.entrez_generif'
+    ],
     'ensembl': [
-              'ensembl.ensembl_gene',
-              'ensembl.ensembl_acc',
-              'ensembl.ensembl_genomic_pos',
-              'ensembl.ensembl_prosite',
-              'ensembl.ensembl_interpro'],
+        'ensembl.ensembl_gene',
+        'ensembl.ensembl_acc',
+        'ensembl.ensembl_genomic_pos',
+        'ensembl.ensembl_prosite',
+        'ensembl.ensembl_interpro'
+    ],
     'uniprot': [
-              'uniprot',
-              'uniprot.uniprot_pdb',
-              # 'uniprot.uniprot_ipi',   # IPI is now discontinued, last update is still in the db, but won't be updated.
-              'uniprot.uniprot_pir'],
+        'uniprot',
+        'uniprot.uniprot_pdb',
+        # 'uniprot.uniprot_ipi',   # IPI is now discontinued, last update is still in the db, but won't be updated.
+        'uniprot.uniprot_pir'
+    ],
     'pharmgkb': ['pharmgkb'],
     'reporter': ['reporter'],
-    'ucsc'    : ['ucsc.ucsc_exons'],
-
+    'ucsc':     ['ucsc.ucsc_exons']
     }
 
-#__sources__ = []
+__sources__ = None   # should be a list defined at runtime
 
 conn = get_src_conn()
 
@@ -51,6 +53,7 @@ def get_data_folder(src_name):
     src_doc = src_dump.find_one({'_id': src_name})
     assert src_doc['status'] == 'success', "Source files are not ready yet [status: \"%s\"]." % src_doc['status']
     return src_doc['data_folder']
+
 
 class CustomField(CustomType):
     pass
@@ -70,13 +73,13 @@ class GeneDocSourceMaster(Document):
 
 class GeneDocSource(Document):
     '''A base class for all source data.'''
-    __collection__ = None  #should be specified individually
+    __collection__ = None      # should be specified individually
     __database__ = DATA_SRC_DATABASE
     use_dot_notation = True
     use_schemaless = True
     DEFAULT_FIELDTYPE = unicode
 
-    temp_collection = None     #temp collection is for dataloading
+    temp_collection = None     # temp collection is for dataloading
 
     def make_temp_collection(self):
         '''Create a temp collection for dataloading, e.g., entrez_geneinfo_INEMO.'''
@@ -88,7 +91,6 @@ class GeneDocSource(Document):
                 break
         self.temp_collection = self.db[new_collection]
         return new_collection
-
 
     def doc_iterator(self, genedoc_d, batch=True, step=10000, validate=True):
         if batch:
@@ -104,7 +106,7 @@ class GeneDocSource(Document):
             if batch:
                 doc_li.append(_doc)
                 i += 1
-                if i%step == 0:
+                if i % step == 0:
                     yield doc_li
                     doc_li = []
             else:
@@ -117,7 +119,7 @@ class GeneDocSource(Document):
         if not self.temp_collection:
             self.make_temp_collection()
 
-        self.temp_collection.drop()       #drop all existing records just in case.
+        self.temp_collection.drop()       # drop all existing records just in case.
 
         if update_data:
             genedoc_d = genedoc_d or self.load_genedoc()
@@ -173,7 +175,6 @@ class GeneDocSource(Document):
         else:
             print "Error: load data first."
 
-
     def validate_all(self, genedoc_d=None):
         """validate all genedoc_d."""
         genedoc_d = genedoc_d or self.load_genedoc()
@@ -195,23 +196,28 @@ def register_sources():
         src_cls = types.ClassType(name, (GeneDocSource,), metadata)
         conn.register(src_cls)
 
+
 #register_sources()
 def get_src(src):
     _src = conn[src+'_doc']()
     return _src
+
 
 def load_src(src, **kwargs):
     print "Loading %s..." % src
     _src = conn[src+'_doc']()
     _src.load(**kwargs)
 
+
 def update_mapping(src):
     _src = conn[src+'_doc']()
     _src.load(update_data=False, update_master=True)
 
+
 def load_all(**kwargs):
     for src in __sources__:
         load_src(src, **kwargs)
+
 
 def get_mapping():
     mapping = {}
@@ -223,7 +229,7 @@ def get_mapping():
         properties.update(_field_properties)
     mapping["properties"] = properties
     #enable _source compression
-    mapping["_source"] = {"enabled" : True,
+    mapping["_source"] = {"enabled": True,
                           "compress": True,
                           "compression_threshold": "1kb"}
 
