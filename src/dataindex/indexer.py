@@ -4,7 +4,7 @@ import socket
 from optparse import OptionParser
 
 from databuild.builder import DataBuilder, timesofar
-from utils.es import es_clean_indices
+#from utils.es import es_clean_indices
 from utils.common import ask
 from config import ES_HOST_TUNNEL_CFG
 
@@ -86,14 +86,14 @@ def main():
     parser.add_option("-e", "--es-index", dest="es_index_name",
                       action="store", default=None,
                       help="provide an alternative ES index name")
-    parser.add_option("", "--no-cleanup", dest="nocleanup",
-                      action="store_true", default=False,
-                      help="do not clean up old ES indices")
+    # parser.add_option("", "--no-cleanup", dest="nocleanup",
+    #                   action="store_true", default=False,
+    #                   help="do not clean up old ES indices")
     (options, args) = parser.parse_args()
 
     with open_tunnel():
-        if not options.nocleanup:
-            es_clean_indices(noconfirm=options.noconfirm)
+        # if not options.nocleanup:
+        #     es_clean_indices(noconfirm=options.noconfirm)
         t00 = time.time()
         bdr = DataBuilder(backend='es')
         if options.config:
