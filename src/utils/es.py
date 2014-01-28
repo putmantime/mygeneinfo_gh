@@ -145,7 +145,11 @@ class ESIndexer(object):
         conn = self.conn
         index_name = self.ES_INDEX_NAME
         index_type = index_type or self.ES_INDEX_TYPE
-        return conn.count(query, index_name, index_type)
+        if isinstance(query, dict) and 'query' in query:
+            _query = query['query']
+        else:
+            _query = query
+        return conn.count(_query, index_name, index_type)
 
     def get(self, id, **kwargs):
         '''get a specific doc by its id.'''
@@ -258,6 +262,7 @@ class ESIndexer(object):
             except:
                 pass
 
+            time.sleep(10)
             print "Validating...",
             target_cnt = collection.find(query).count()
             es_cnt = self.count()['count']
@@ -269,9 +274,9 @@ class ESIndexer(object):
         if cnt:
             print 'Done! - {} docs indexed.'.format(cnt)
             print "Optimizing...", self.optimize()
-            conn.indices.update_settings(index_name, {
-                "auto_expand_replicas": "0-all",   # expand replicas to all nodes
-            })
+            # conn.indices.update_settings(index_name, {
+            #     "auto_expand_replicas": "0-all",   # expand replicas to all nodes
+            # })
 
     def _build_index_sequential(self, collection, verbose=False, query=None):
         conn = self.conn
@@ -359,7 +364,7 @@ class ESIndexer(object):
         index_type = index_type or self.ES_INDEX_TYPE
 
         q = query if query else MatchAllQuery()
-        n = self.count()['count']
+        n = self.count(query=q)['count']
         cnt = 0
         t0 = time.time()
         if verbose:
