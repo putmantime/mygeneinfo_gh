@@ -349,8 +349,8 @@ class ESIndexer(object):
                     cnt += 1
             finally:
                 cur.close()
-            es_conn.flush()   # this is important to avoid missing docs
-            es_conn.refresh()
+            es_conn.indices.flush()   # this is important to avoid missing docs
+            es_conn.indices.refresh()
             return cnt
 
         job_results = run_jobs_on_ipythoncluster(worker, task_list)
@@ -458,8 +458,8 @@ class ESIndexer(object):
         #     print 'done. [{}]'.format(timesofar(t1))
         for doc in docs:
             self.index(doc, id=doc['_id'], bulk=True)
-        self.conn.flush()
-        self.conn.refresh()
+        self.conn.indices.flush()
+        self.conn.indices.refresh()
 
     def delete_docs(self, ids):
         _q = {
