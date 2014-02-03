@@ -1,14 +1,18 @@
 from __future__ import print_function
+import sys
 from datetime import datetime
 import time
 import re
+import os
+from pprint import pprint
 from pyes import TermQuery
 
 from utils.es import ESIndexer
 from utils.mongo import get_target_db, get_src_build
-from utils.common import iter_n, timesofar, ask
+from utils.common import iter_n, timesofar, ask, loadobj
 from databuild.backend import GeneDocMongoDBBackend, GeneDocESBackend
 from databuild.sync import get_changes_stats
+from .tunnel import open_tunnel, es_local_tunnel_port
 
 
 class ESIndexer2(ESIndexer):
@@ -40,6 +44,7 @@ class ESIndexer2(ESIndexer):
                     "terms": {
                         "field": "_timestamp",
                         "all_terms": True,
+                        "size": 1000,    # default size = 10
                         "order": "reverse_term"
                     }
                 }
@@ -58,8 +63,9 @@ class ESIndexer2(ESIndexer):
         src = changes['source']
         prefix = self._split_source_name(src)[0]
         #assert self.ES_INDEX_NAME.startswith(prefix+'_current'),\
-        assert self.ES_INDEX_NAME == prefix + '_current_1',\
-            '"{}" does not match "{}"'.format(self.ES_INDEX_NAME, src)
+        _es_target = prefix + '_current_1'
+        assert self.ES_INDEX_NAME == _es_target,\
+            '"{}" does not match "{}"'.format(self.ES_INDEX_NAME, _es_target)
         print('\033[34;06m{}\033[0m:'.format('[Pending changes]'))
         get_changes_stats(changes)
         print('\033[34;06m{}\033[0m:'.format('[Target ES]'))
@@ -71,7 +77,7 @@ class ESIndexer2(ESIndexer):
 
         if not (noconfirm or ask('\nContinue to apply changes?') == 'Y'):
             print("Aborted.")
-            return
+            return -1
         #src = self.get_source_collection(changes)
         step = self.step
         _db = get_target_db()
@@ -139,7 +145,7 @@ class ESIndexer2(ESIndexer):
 
         if changes['add'] or changes['update']:
             print('Verifying "add" and "update"...', end='')
-            assert ts_stats[0][0] == _timestamp
+            assert ts_stats[0][0] == _timestamp, "{} != {}".format(ts_stats[0][0], _timestamp)
             _cnt = ts_stats[0][1]
             _cnt_add_update = len(changes['add']) + len(changes['update'])
             if _cnt == _cnt_add_update:
@@ -183,3 +189,68 @@ class ESIndexer2(ESIndexer):
 #meta = esi.get_mapping_meta(changes)
 #esi.update_mapping_meta({'_meta': meta})
 #esi.post_verify_changes(changes)
+
+
+def _get_current_changes_fn(config):
+    if config == 'genedoc_mygene_allspecies':
+        pattern = 'changes_\d{8}_allspecies.pyobj'
+    elif config == 'genedoc_mygene':
+        pattern = 'changes_\d{8}.pyobj'
+
+    fli = [f for f in os.listdir('.') if re.match(pattern, f)]
+    if fli:
+        _changes_fn = sorted(fli)[-1]
+        return _changes_fn
+
+
+def main():
+    if len(sys.argv) > 1:
+        config = sys.argv[1]
+    else:
+        config = 'mygene'
+        #config = 'mygene_allspecies'
+    if not config.startswith('genedoc_'):
+        config = 'genedoc_' + config
+    assert config in ['genedoc_mygene', 'genedoc_mygene_allspecies']
+    noconfirm = '-b' in sys.argv
+
+    _changes_fn = _get_current_changes_fn(config)
+    if _changes_fn:
+        print("Changes file: " + _changes_fn)
+    else:
+        print("No changes file found. Aborted.")
+        return -1
+    if noconfirm or ask("Continue to load?") == 'Y':
+        changes = loadobj(_changes_fn)
+    else:
+        print("Aborted.")
+        return -2
+
+    _es_host = 'localhost:' + str(es_local_tunnel_port)
+    _es_index = config + '_current_1'
+
+    # for test
+    #_es_host = 'localhost:9200'
+    #_es_index = config + '_current'
+
+    with open_tunnel():
+        esi = ESIndexer2(_es_index, es_host=_es_host)
+        meta = esi.get_mapping_meta(changes)
+        print('\033[34;06m{}\033[0m:'.format('[Metadata]'))
+        pprint(meta)
+        code = esi.apply_changes(changes, noconfirm=noconfirm)
+        if code != -1:
+            # aborted when code == -1
+            _meta = {'_meta': meta}
+            # somehow when only update "_meta", "_timestamp" get empty
+            # so add "_timestamp" explicitly here. This is an ES bug.
+            _meta['_timestamp'] = {
+                "enabled": True,
+                "path": "_timestamp"
+            }
+            esi.update_mapping_meta(_meta)
+            esi.post_verify_changes(changes)
+
+
+if __name__ == '__main__':
+    main()
