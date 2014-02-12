@@ -52,7 +52,7 @@ def _get_rev():
     return ':'.join(reversed(output.replace('+', '').split(' ')))
 __revision__ = _get_rev()
 
-
+"""
 class StatusCheckHandler(tornado.web.RequestHandler):
     '''This reponses to a HEAD request of /status for status check.'''
     def head(self):
@@ -71,6 +71,7 @@ class MetaDataHandler(tornado.web.RequestHandler):
         metadata = bs.get_metadata(raw=True)
         metadata = '{"app_revision": "%s",' % __revision__ + metadata[1:]
         self.write(metadata)
+"""
 
 
 class GeneHandler(BaseHandler):
@@ -118,9 +119,9 @@ class QueryHandler(BaseHandler):
         kwargs = self.get_query_params()
         q = kwargs.pop('q', None)
         if q:
-            fields = kwargs.get('fields', None)
+            # fields = kwargs.get('fields', None)
             explain = self.get_argument('explain', None)
-            if explain and explain.lower()=='true':
+            if explain and explain.lower() == 'true':
                 kwargs['explain'] = True
             for arg in ['from', 'size', 'mode']:
                 value = kwargs.get(arg, None)
@@ -152,13 +153,13 @@ class IntervalQueryHandler(tornado.web.RequestHandler):
                 fields = fields.split(',')
                 kwargs['fields'] = fields
             explain = self.get_argument('explain', None)
-            if explain and explain.lower()=='true':
+            if explain and explain.lower() == 'true':
                 kwargs['explain'] = True
             for arg in ['from', 'size', 'mode']:
                 value = self.get_argument(arg, None)
                 if value:
                     kwargs[arg] = int(value)
-            sample = self.get_argument('sample', None) == 'true'
+            # sample = self.get_argument('sample', None) == 'true'
             esq = ESQuery()
             res = esq.query_interval(**kwargs)
             _json_data = json.dumps(res)
@@ -237,15 +238,15 @@ class LogViewer(tornado.web.RequestHandler):
 
 
 APP_LIST = [
-#        (r"/status", StatusCheckHandler),
-#        (r"/metadata", MetaDataHandler),
-#        (r"/release_notes", ReleaseNotesHandler),
-        (r"/gene/([\w\-\.]+)/?", GeneHandler),   #for get request
-        (r"/gene/?", GeneHandler),               #for post request
-        (r"/query/?", QueryHandler),
-        (r"/interval/?", IntervalQueryHandler),
-        (r"/mongo/(\w+)/?(\w*)/?(\w*)/?", MongoViewer),
-        (r"/log/(\w+)/(\w+)/?(\w*)/?", LogViewer),
+    #    (r"/status", StatusCheckHandler),
+    #    (r"/metadata", MetaDataHandler),
+    #    (r"/release_notes", ReleaseNotesHandler),
+    (r"/gene/([\w\-\.]+)/?", GeneHandler),   # for get request
+    (r"/gene/?", GeneHandler),               # for post request
+    (r"/query/?", QueryHandler),
+    (r"/interval/?", IntervalQueryHandler),
+    (r"/mongo/(\w+)/?(\w*)/?(\w*)/?", MongoViewer),
+    (r"/log/(\w+)/(\w+)/?(\w*)/?", LogViewer),
 ]
 
 settings = {}
@@ -277,4 +278,3 @@ if __USE_WSGI__:
 
 if __name__ == "__main__":
     main()
-
