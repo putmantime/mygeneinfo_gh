@@ -205,7 +205,7 @@ class MongoViewer(tornado.web.RequestHandler):
 class LogViewer(tornado.web.RequestHandler):
     def get(self, kind, src, timestamp=None):
         dump_dir = '/opt/genedoc-hub/load_archive/by_resources/'
-        build_dir = '/sulab/cwu/prj/genedoc-hub/logs/'
+        build_dir = '/home/cwu/prj/genedoc-hub/logs/'
         logfile = None
         if kind in ['dump', 'upload']:
             dir_base = dump_dir + src
@@ -216,11 +216,15 @@ class LogViewer(tornado.web.RequestHandler):
                     timestamp = ''
                 logfile = os.path.join(dir_base, timestamp,
                                        src + ('_dump.log' if kind == 'dump' else '_upload.log'))
-        elif kind == 'build':
+        elif kind in ['build', 'sync']:
+            if kind == 'build':
+                _prefix = 'databuild_genedoc'
+            elif kind == 'sync':
+                _prefix = 'databuild_sync_genedoc'
             if timestamp:
-                logfile = os.path.join(build_dir, 'databuild_genedoc_{}_{}.log'.format(src, timestamp))
+                logfile = os.path.join(build_dir, '{}_{}_{}.log'.format(_prefix, src, timestamp))
             else:
-                logfile = sorted([fn for fn in os.walk(build_dir).next()[2] if re.match('databuild_genedoc_{}_\d+.log'.format(src), fn)])[-1]
+                logfile = sorted([fn for fn in os.walk(build_dir).next()[2] if re.match('{}_{}_\d+.log'.format(_prefix, src), fn)])[-1]
                 logfile = os.path.join(build_dir, logfile)
 
         if logfile and os.path.exists(logfile):
