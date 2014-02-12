@@ -117,6 +117,25 @@ class GeneDocDispatcher:
                 hipchat_msg(msg, message_format='html')
 
             assert returncode == 0, "Subprocess failed. Check error above."
+        genedoc_merged.send(self)
+
+    @classmethod
+    def handle_genedoc_merged(self):
+        for config in ('mygene', 'mygene_allspecies'):
+            t0 = time.time()
+            p = Popen(['python', '-m', 'databuild.sync', config, '-p', '-b'], cwd=src_path)
+            returncode = p.wait()
+            t = timesofar(t0)
+            if returncode == 0:
+                msg = 'Dispatcher:  "{}" syncer finished successfully with code {} (time: {})'.format(config, returncode, t)
+            else:
+                msg = 'Dispatcher:  "{}" syncer failed successfully with code {} (time: {})'.format(config, returncode, t)
+            print msg
+            if hipchat_msg:
+                msg += '<a href="http://su01:8000/log/sync/{}">sync log</a>'.format(config)
+                hipchat_msg(msg, message_format='html')
+
+            assert returncode == 0, "Subprocess failed. Check error above."
 
     def check_src_build(self):
         pass
@@ -148,6 +167,7 @@ class GeneDocDispatcher:
 source_update_available.connect(GeneDocDispatcher.handle_src_upload)
 source_upload_success.connect(GeneDocDispatcher.handle_src_upload_success)
 source_upload_failed.connect(GeneDocDispatcher.handle_src_upload_failed)
+genedoc_merged.connect(GeneDocDispatcher.handle_genedoc_merged)
 
 if __name__ == '__main__':
     GeneDocDispatcher().main()
