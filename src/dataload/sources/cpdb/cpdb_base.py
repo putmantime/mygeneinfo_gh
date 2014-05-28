@@ -1,11 +1,12 @@
 import json
 import os.path
-from utils.dataload import (load_start, load_done, tab2dict, value_convert)
+from utils.dataload import (load_start, load_done)
 from dataload import get_data_folder
 
 DATA_FOLDER = get_data_folder('cpdb')
 
 def load_cpdb():
+        
     print('DATA_FOLDER: '+ DATA_FOLDER)
     DATA_FILE = os.path.join(DATA_FOLDER, 'CPDB_pathways_genes.tab')
     load_start(DATA_FILE)
@@ -29,6 +30,9 @@ def load_cpdb():
             else:
                 if cols[len(cols)-3] != "None":
                     arr[gene]= {'pathway':{cols[len(cols)-2].lower():{'name':cols[len(cols)-4], 'id': cols[len(cols)-3].replace("path:","")}}}
+
+    load_done('[%d]' % len(arr))
+
     return arr
 
 
