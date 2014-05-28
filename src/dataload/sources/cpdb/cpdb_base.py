@@ -12,7 +12,6 @@ def load_cpdb():
     f= open(DATA_FILE,"r")
     lines = f.readlines()
     arr = {}
-    curr = 0
     for line in lines:
         line = line.rstrip('\n')
         cols = line.split("\t")
@@ -27,12 +26,9 @@ def load_cpdb():
                         arr[gene]['pathway'][cols[len(cols)-2].lower()]['id'] = cols[len(cols)-3].replace("path:","")
                     else :
                         arr[gene]['pathway'][cols[len(cols)-2].lower()]['id'] = cols[len(cols)-3]
-                    print "Added New Pathway"
             else:
                 if cols[len(cols)-3] != "None":
                     arr[gene]= {'pathway':{cols[len(cols)-2].lower():{'name':cols[len(cols)-4], 'id': cols[len(cols)-3].replace("path:","")}}}
-                    print "Aded New Gene"
-                break
     return arr
 
 
