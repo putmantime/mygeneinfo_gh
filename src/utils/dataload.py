@@ -192,7 +192,10 @@ def dupline_seperator(dupline, dup_sep, dup_idx=None, strip=False):
         value_li[idx] = value
     return itertools.product(*value_li)    #itertools.product fits exactly the purpose here
 
-def tabfile_feeder(datafile, header=1, sep='\t', includefn=None, coerce_unicode=True):
+def tabfile_feeder(datafile, header=1, sep='\t',
+                   includefn=None,
+                   coerce_unicode=True,
+                   assert_column_no=None):
     '''a generator for each row in the file.'''
 
     reader = csv.reader(anyfile(datafile),delimiter=sep)
@@ -203,6 +206,11 @@ def tabfile_feeder(datafile, header=1, sep='\t', includefn=None, coerce_unicode=
             lineno += 1
 
         for ld in reader:
+            if assert_column_no:
+                if len(ld) != assert_column_no:
+                    err = "Unexpected column number:" \
+                          " got {}, should be {}".format(len(ld), assert_column_no)
+                    raise ValueError(err)
             if not includefn or includefn(ld):
                 lineno += 1
                 if coerce_unicode:
