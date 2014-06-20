@@ -54,13 +54,15 @@ class GeneDocDispatcher:
             if returncode is None:
                 p.log_f.flush()
             else:
-                t1 = round(time.time()-p.t0, 0)
-                d = {'upload.returncode': returncode,
-                     'upload.timestamp': datetime.now(),
-                     'upload.time_in_s': t1,
-                     'upload.time': timesofar(p.t0),
-                     'upload.logfile': p.logfile,
-                     }
+                t1 = round(time.time() - p.t0, 0)
+                d = {
+                    'upload.returncode': returncode,
+                    'upload.timestamp': datetime.now(),
+                    'upload.time_in_s': t1,
+                    'upload.time': timesofar(p.t0),
+                    'upload.logfile': p.logfile,
+                    'upload.status': "success" if returncode == 0 else "failed"
+                }
                 mark_upload_done(src, d)
                 jobs_finished.append(src)
                 p.log_f.close()
@@ -68,7 +70,6 @@ class GeneDocDispatcher:
                 if returncode == 0:
                     msg = 'Dispatcher:  "{}" uploader finished successfully with code {} (time: {})'.format(src, returncode, timesofar(p.t0, t1=t1))
                     print msg
-                    d['upload.status'] = "success"
                     if hipchat_msg:
                         msg += '<a href="http://su01:8000/log/dump/{}">dump log</a>'.format(src)
                         msg += '<a href="http://su01:8000/log/upload/{}">upload log</a>'.format(src)
@@ -77,7 +78,6 @@ class GeneDocDispatcher:
                 else:
                     msg = 'Dispatcher:  "{}" uploader failed with code {} (time: {}s)'.format(src, returncode, t1)
                     print msg
-                    d['upload.status'] = "failed"
                     if hipchat_msg:
                         hipchat_msg(msg)
                     source_upload_failed.send(self, src_name=src)
@@ -150,13 +150,14 @@ class GeneDocDispatcher:
             self.check_src_dump()
             self.check_src_upload()
             # if _flag:
-            #     genedoc_merged.send(self)
+            #     #genedoc_merged.send(self)
+            #     source_upload_success.send(self, src_name='entrez')
             #     _flag = False
             self.check_src_build()
             self.check_src_index()
 
             if self.idle:
-                print '\b'*50,
+                print '\b' * 50,
                 for i in range(100):
                     print '\b' * 2 + [unichr(8212), '\\', '|', '/'][i % 4],
                     time.sleep(0.1)
