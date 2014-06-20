@@ -123,6 +123,7 @@ def main():
 
     log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'entrez_dump.log'), prompt=(not no_confirm), default='O')
     sys.stdout = LogPrint(log_f, timestamp=True)
+    sys.stderr = sys.stdout
 
     #mark the download starts
     src_dump = get_src_dump()
