@@ -14,6 +14,8 @@ DATA_FOLDER = get_data_folder('uniprot')
 
 #REF:
 #ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/README
+VALID_COLUMN_NO = 22
+
 
 def get_uniprot_section(uniprotkb_id):
     '''return either "Swiss-Prot" or "TrEMBL", two sections of UniProtKB,
@@ -50,8 +52,8 @@ def load_uniprot():
     load_start(DATAFILE)
     t0 = time.time()
     xli = []
-    for ld in tabfile_feeder(DATAFILE, header=1):
-        ld = listitems(ld, *(0,1,2,19))    #UniProtKB-AC UniProtKB-ID GeneID Ensembl(Gene)
+    for ld in tabfile_feeder(DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
+        ld = listitems(ld, *(0,1,2,18))    #UniProtKB-AC UniProtKB-ID GeneID Ensembl(Gene)
         for value in dupline_seperator(dupline=ld,
                                        dup_idx=[2,3],   #GeneID and EnsemblID columns may have duplicates
                                        dup_sep='; '):
@@ -83,12 +85,13 @@ def load_uniprot():
 
 
 def load_x(idx, fieldname, cvt_fn=None):
+    '''idx is 0-based column number'''
     print('DATA_FOLDER: ' + DATA_FOLDER)
     DATAFILE = os.path.join(DATA_FOLDER, 'idmapping_selected.tab.gz')
     load_start(DATAFILE)
     t0 = time.time()
     xli = []
-    for ld in tabfile_feeder(DATAFILE, header=1):
+    for ld in tabfile_feeder(DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
         ld = listitems(ld, *(2,19,idx))    # GeneID Ensembl(Gene) target_value
         for value in dupline_seperator(dupline=ld,
                                        dup_sep='; '):
@@ -122,8 +125,11 @@ def load_pdb():
     fn = lambda pdb_id: pdb_id.split(':')[0]
     return load_x(idx=5, fieldname='pdb', cvt_fn=fn)
 
-def load_ipi():
-    return load_x(idx=7, fieldname='ipi')
+# def load_ipi():
+#     """IPI is now discontinued.
+#        Now removed from idmapping_selected.tab.gz file since 2014/06/11 release.
+#     """
+#     return load_x(idx=7, fieldname='ipi')
 
 def load_pir():
-    return load_x(idx=12, fieldname='pir')
+    return load_x(idx=11, fieldname='pir')
