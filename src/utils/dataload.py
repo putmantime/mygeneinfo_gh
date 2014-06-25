@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import os.path
 import types
 import itertools
@@ -19,7 +20,7 @@ import csv
 csv.field_size_limit(10000000)  #default is 131072, too small for some big files
 import json
 
-from utils.common import safewfile
+from utils.common import ask, safewfile
 
 #===============================================================================
 # Misc. Utility functions
@@ -431,3 +432,33 @@ def dict_to_list(gene_d):
     doc_li = [updated_dict(gene_d[k], {'_id': str(k)}) for k in sorted(gene_d.keys())]
     return doc_li
 
+
+#===============================================================================
+# Network Utility functions
+#===============================================================================
+def download(url, output_folder, output_file, no_confirm=False, use_axel=False):
+    orig_path = os.getcwd()
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)  # create output_folder if doesn not exist
+    try:
+        os.chdir(output_folder)
+        if os.path.exists(output_file):
+            if no_confirm or ask('Remove existing file "%s"?' % output_file) == 'Y':
+                os.remove(output_file)
+            else:
+                print "Skipped!"
+                return
+        print 'Downloading "%s"...' % output_file
+        if use_axel:
+            #faster than wget using 5 connections
+            cmdline = 'axel -a -n 5 "{}" -o "{}"'.format(url, output_file)
+        else:
+            cmdline = 'wget "{}" -O "{}"'.format(url, output_file)
+        return_code = os.system(cmdline)
+        if return_code == 0:
+            print "Success."
+        else:
+            print "Failed with return code (%s)." % return_code
+        print "="*50
+    finally:
+        os.chdir(orig_path)
