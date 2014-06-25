@@ -1,5 +1,6 @@
 from cpdb_base import load_cpdb
 
+
 __metadata__ = {
     '__collection__' : 'cpdb',
     '__url_human__': 'http://cpdb.molgen.mpg.de/CPDB/getPathwayGenes?idtype=entrez-gene',
