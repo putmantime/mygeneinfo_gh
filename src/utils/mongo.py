@@ -192,3 +192,22 @@ def target_clean_collections(keep_last=2, target=None, verbose=True, noconfirm=F
                 print "Aborted."
         else:
             print "Nothing needs to be removed."
+
+
+def backup_src_configs():
+    import json
+    import os
+    from utils.common import send_s3_file, get_timestamp, DateTimeJSONEncoder
+
+    db = get_src_db()
+    for cfg in ['src_dump', 'src_master', 'src_build']:
+        xli = list(db[cfg].find())
+        bakfile = '/tmp/{}_{}.json'.format(cfg, get_timestamp())
+        bak_f = file(bakfile, 'w')
+        json.dump(xli, bak_f, cls=DateTimeJSONEncoder, indent=2)
+        bak_f.close()
+        bakfile_key = 'genedoc_src_config_bk/' + os.path.split(bakfile)[1]
+        print 'Saving to S3: "{}"... '.format(bakfile_key),
+        send_s3_file(bakfile, bakfile_key, overwrite=True)
+        os.remove(bakfile)
+        print 'Done.'
