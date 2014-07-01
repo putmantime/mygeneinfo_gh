@@ -7,15 +7,16 @@ import random
 import string
 import os
 import types
+import json
 from itertools import islice
 
 
 src_path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
 
 
-#===============================================================================
+# ===============================================================================
 # Misc. Utility functions
-#===============================================================================
+# ===============================================================================
 def ask(prompt, options='YN'):
     '''Prompt Yes or No,return the upper case 'Y' or 'N'.'''
     options = options.upper()
@@ -321,3 +322,14 @@ def send_s3_file(localfile, s3key, overwrite=False):
     lastmodified = os.stat(localfile)[-2]
     k.set_metadata('lastmodified', lastmodified)
     k.set_contents_from_filename(localfile)
+
+
+class DateTimeJSONEncoder(json.JSONEncoder):
+    '''A class to dump Python Datetime object.
+        json.dumps(data, cls=DateTimeJSONEncoder, indent=indent)
+    '''
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        else:
+            return super(DateTimeJSONEncoder, self).default(obj)
