@@ -1,31 +1,17 @@
-import json
 import os.path
-from utils.dataload import (load_start, load_done)
-from dataload import get_data_folder
+import time
 
+from utils.common import get_timestamp, timesofar
+from utils.dataload import (load_start, load_done, tabfile_feeder,
+                            list2dict, value_convert, dict_convert)
+from dataload import get_data_folder
 
 DATA_FOLDER = get_data_folder('cpdb')
 
-#only import pathways from these sources
-PATHWAY_SOURCES_INCLUDED = [
-    'biocarta',
-    'humancyc',
-    'kegg',
-    'mousecyc',
-    'netpath',
-    'pharmgkb',
-    'pid',
-    'reactome',
-    'smpdb',
-    'wikipathways',
-    'yeastcyc'
-]
 
-
-def download():
-    from utils.common import get_timestamp
+def _download(__metadata__):
     from utils.dataload import download as _download
-    from ..cpdb import __metadata__
+
     output_folder = os.path.join(os.path.split(DATA_FOLDER)[0], get_timestamp())
     for species in ['human', 'mouse', 'yeast']:
         url = __metadata__['__url_{}__'.format(species)]
@@ -33,39 +19,49 @@ def download():
         _download(url, output_folder, output_file)
 
 
-def load_cpdb():
+def load_cpdb(__metadata__):
+    # only import pathways from these sources
+    PATHWAY_SOURCES_INCLUDED = __metadata__['pathway_sources_included']
+    VALID_COLUMN_NO = 4
 
-    print('DATA_FOLDER: '+ DATA_FOLDER)
+    t0 = time.time()
+    print('DATA_FOLDER: ' + DATA_FOLDER)
     DATA_FILES = []
     DATA_FILES.append(os.path.join(DATA_FOLDER, 'CPDB_pathways_genes_mouse.tab'))
     DATA_FILES.append(os.path.join(DATA_FOLDER, 'CPDB_pathways_genes_yeast.tab'))
     DATA_FILES.append(os.path.join(DATA_FOLDER, 'CPDB_pathways_genes_human.tab'))
-    arr = {}
+
+    _out = []
     for DATA_FILE in DATA_FILES:
         load_start(DATA_FILE)
-        with open(DATA_FILE) as in_f:
-            for line in in_f:
-                line = line.rstrip('\n')
-                cols = line.split("\t")
-                genes = cols[len(cols)-1].split(",")
+        for ld in tabfile_feeder(DATA_FILE, header=1, assert_column_no=VALID_COLUMN_NO):
+            p_name, p_id, p_source = ld[:3]
+            p_source = p_source.lower()
+            if p_source == 'kegg' and p_id.startswith('path:'):
+                p_id = p_id[5:]
+            if p_source in PATHWAY_SOURCES_INCLUDED:
+                genes = ld[-1].split(",")
                 for gene in genes:
-                    if gene != "entrez_gene_ids" and gene in arr.keys():
-                        if cols[len(cols)-2] not in arr[gene]['pathway'].keys():
-                            arr[gene]['pathway'][cols[len(cols)-2].lower()]={'name':''}
-                        arr[gene]['pathway'][cols[len(cols)-2].lower()]['name'] = cols[len(cols)-4]
-                        if cols[len(cols)-3] != "None":
-                            if cols[len(cols)-2].lower() == "kegg":
-                                arr[gene]['pathway'][cols[len(cols)-2].lower()]['id'] = cols[len(cols)-3].replace("path:","")
-                            else :
-                                arr[gene]['pathway'][cols[len(cols)-2].lower()]['id'] = cols[len(cols)-3]
-                    else:
-                        if cols[len(cols)-3] != "None":
-                            arr[gene]= {'pathway':{cols[len(cols)-2].lower():{'name':cols[len(cols)-4], 'id': cols[len(cols)-3].replace("path:","")}}}
+                    _out.append((gene, p_name, p_id, p_source))
+        load_done()
+    _out = list2dict(_out, 0, alwayslist=True)
 
-            load_done('[%d]' % len(arr))
+    def _inner_cvt(p):
+        p_name, p_id = p
+        _d = {'name': p_name}
+        if p_id != 'None':
+            _d['id'] = p_id
+        return _d
 
-    return arr
+    def _cvt(pli):
+        _d = list2dict(pli, 2)
+        _d = value_convert(_d, _inner_cvt)
+        for p_source in _d:
+            if isinstance(_d[p_source], list):
+                _d[p_source].sort()
+        return {'pathway': _d}
 
+    _out = dict_convert(_out, valuefn=_cvt)
+    load_done('[%d, %s]' % (len(_out), timesofar(t0)))
 
-
-
+    return _out

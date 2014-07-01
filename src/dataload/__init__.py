@@ -40,7 +40,8 @@ __sources_dict__ = {
     ],
     'pharmgkb': ['pharmgkb'],
     'reporter': ['reporter'],
-    'ucsc':     ['ucsc.ucsc_exons']
+    'ucsc':     ['ucsc.ucsc_exons'],
+    'cpdb':     ['cpdb']
     }
 
 __sources__ = None   # should be a list defined at runtime
@@ -149,7 +150,7 @@ class GeneDocSource(Document):
                 print 'Done[%s]' % timesofar(t0)
 
         if update_master:
-            #update src_master collection
+            # update src_master collection
             if not test:
                 _doc = {"_id": unicode(self.__collection__),
                         "name": unicode(self.__collection__),
@@ -168,7 +169,7 @@ class GeneDocSource(Document):
         '''
         if self.temp_collection and self.temp_collection.count() > 0:
             if self.collection.count() > 0:
-                #renaming existing collections
+                # renaming existing collections
                 new_name = '_'.join([self.__collection__, 'archive', get_timestamp(), get_random_string()])
                 self.collection.rename(new_name, dropTarget=True)
             self.temp_collection.rename(self.__collection__)
@@ -197,7 +198,7 @@ def register_sources():
         conn.register(src_cls)
 
 
-#register_sources()
+# register_sources()
 def get_src(src):
     _src = conn[src+'_doc']()
     return _src
@@ -228,7 +229,7 @@ def get_mapping():
         _field_properties = _src.get_mapping()
         properties.update(_field_properties)
     mapping["properties"] = properties
-    #enable _source compression
+    # enable _source compression
     mapping["_source"] = {"enabled": True,
                           "compress": True,
                           "compression_threshold": "1kb"}
