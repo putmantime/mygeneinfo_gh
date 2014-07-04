@@ -72,7 +72,8 @@ DataSet_D = {'human': 'hsapiens_gene_ensembl',
 def chk_latest_mart_version():
     ftp = FTP('ftp.ensembl.org')
     ftp.login()
-    release_li = ftp.nlst('/pub/release-*')
+    #release_li = ftp.nlst('/pub/release-*')
+    release_li = [x for x in ftp.nlst('/pub') if x.startswith('/pub/release-')]
     return sorted([int(fn.split('-')[-1]) for fn in release_li])[-1]
 
 def _to_int(taxid):
