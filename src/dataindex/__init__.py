@@ -13,7 +13,7 @@ from utils.common import is_int, timesofar
 from utils.es import get_es
 from pyes.exceptions import NotFoundException
 from pyes.utils import make_path
-from pyes.query import MatchAllQuery, StringQuery
+from pyes.query import MatchAllQuery, QueryStringQuery
 from config import ES_INDEX_NAME, ES_INDEX_TYPE
 #from pyelasticsearch import ElasticSearch
 
@@ -194,7 +194,7 @@ class ESQuery:
                 fields, from, size etc.
         '''
         if query:
-            q = StringQuery(query)
+            q = QueryStringQuery(query)
         else:
             q = MatchAllQuery()
         raw_res = None

@@ -108,9 +108,9 @@ class ESIndexer(object):
             return -1
 
         try:
-            conn.indices.get_mapping(index_type, index_name)
+            conn.indices.get_mapping(index_type, index_name, raw=True)
             empty_mapping = False
-        except ElasticSearchException:
+        except IndexMissingException:
             #if no existing mapping available for index_type
             #force update_mapping to True
             empty_mapping = True
@@ -126,7 +126,7 @@ class ESIndexer(object):
             print "Updating mapping...",
             if not empty_mapping:
                 print "\n\tRemoving existing mapping...",
-                print conn.delete_mapping(index_name, index_type)
+                print conn.indices.delete_mapping(index_name, index_type)
             _mapping = self.get_field_mapping()
             print conn.indices.put_mapping(index_type,
                                            _mapping,

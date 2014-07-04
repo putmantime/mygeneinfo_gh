@@ -4,7 +4,7 @@ import socket
 
 from config import ES_HOST_TUNNEL_CFG
 
-es_local_tunnel_port = 9201
+es_local_tunnel_port = 9209
 
 
 def port_open(host, port):
@@ -22,7 +22,7 @@ class ESTunnelContextManager:
 
     def __enter__(self):
         assert not port_open('localhost', es_local_tunnel_port), 'localhost:{} is alreay open'.format(es_local_tunnel_port)
-        tunnel_cmd = "ssh -o StrictHostKeyChecking=no -N -L {0}:localhost:9200 -C -i {key} {username}@{host}"
+        tunnel_cmd = "ssh -4 -o StrictHostKeyChecking=no -N -L {0}:localhost:9200 -C -i {key} {username}@{host}"
         tunnel_cmd = tunnel_cmd.format(es_local_tunnel_port, **ES_HOST_TUNNEL_CFG)
         self.p = subprocess.Popen(tunnel_cmd.split())
         time.sleep(2)

@@ -427,7 +427,7 @@ def dict_apply(dict, key, value, sort=True):
 
 def dict_to_list(gene_d):
     '''return a list of genedoc from genedoc dictionary and
-       make sure the "_id" field exists.s
+       make sure the "_id" field exists.
     '''
     doc_li = [updated_dict(gene_d[k], {'_id': str(k)}) for k in sorted(gene_d.keys())]
     return doc_li

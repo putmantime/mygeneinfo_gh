@@ -14,7 +14,8 @@ def run_jobs_on_ipythoncluster(worker, task_list, shutdown_ipengines_after_done=
     t0 = time.time()
     rc = Client(CLUSTER_CLIENT_JSON)
     lview = rc.load_balanced_view()
-    print "\t# nodes in use: {}".format(len(lview.targets or rc.ids))
+    cnt_nodes = len(lview.targets or rc.ids)
+    print "\t# nodes in use: {}".format(cnt_nodes)
     lview.block = False
 
     print "\t# of tasks: {}".format(len(task_list))

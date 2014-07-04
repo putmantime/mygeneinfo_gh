@@ -791,8 +791,8 @@ class DataBuilder():
         self._stats = last_build['stats']
         assert last_build.get('target', None), \
             'Abort. Last build target_collection is not available.'
-        #target_collection = last_build['target']
-        target_collection = "genedoc_{}_current".format(build_config)  ######
+        target_collection = last_build['target']
+        #target_collection = "genedoc_{}_current".format(build_config)  ######
         _db = get_target_db()
         target_collection = _db[target_collection]
         print
