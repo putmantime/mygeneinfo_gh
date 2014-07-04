@@ -28,7 +28,8 @@ from config import DATA_ARCHIVE_ROOT
 timestamp = time.strftime('%Y%m%d')
 DATA_FOLDER=os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/pharmgkb', timestamp)
 
-GENES_URL = 'http://www.pharmgkb.org/commonFileDownload.action?filename=genes.zip'
+#GENES_URL = 'http://www.pharmgkb.org/commonFileDownload.action?filename=genes.zip'
+GENES_URL = 'http://www.pharmgkb.org/download.do?objId=genes.zip&dlCls=common'
 
 def download(no_confirm=False):
     orig_path = os.getcwd()
@@ -43,7 +44,7 @@ def download(no_confirm=False):
                 print "Skipped!"
                 return
         print 'Downloading "%s"...' % filename
-        cmdline = 'wget %s -O %s' % (url, filename)
+        cmdline = 'wget "%s" -O %s' % (url, filename)
         #cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
         return_code = os.system(cmdline)
         if return_code == 0:
