@@ -71,8 +71,8 @@ class GeneDocDispatcher:
                     msg = 'Dispatcher:  "{}" uploader finished successfully with code {} (time: {})'.format(src, returncode, timesofar(p.t0, t1=t1))
                     print msg
                     if hipchat_msg:
-                        msg += '<a href="http://su01:8000/log/dump/{}">dump log</a>'.format(src)
-                        msg += '<a href="http://su01:8000/log/upload/{}">upload log</a>'.format(src)
+                        msg += '<a href="http://su07:8000/log/dump/{}">dump log</a>'.format(src)
+                        msg += '<a href="http://su07:8000/log/upload/{}">upload log</a>'.format(src)
                         hipchat_msg(msg, message_format='html')
                     source_upload_success.send(self, src_name=src)
                 else:
@@ -113,7 +113,7 @@ class GeneDocDispatcher:
                 msg = 'Dispatcher:  "{}" builder failed successfully with code {} (time: {})'.format(config, returncode, t)
             print msg
             if hipchat_msg:
-                msg += '<a href="http://su01:8000/log/build/{}">build log</a>'.format(config)
+                msg += '<a href="http://su07:8000/log/build/{}">build log</a>'.format(config)
                 hipchat_msg(msg, message_format='html')
 
             assert returncode == 0, "Subprocess failed. Check error above."
@@ -132,7 +132,7 @@ class GeneDocDispatcher:
                 msg = 'Dispatcher:  "{}" syncer failed successfully with code {} (time: {})'.format(config, returncode, t)
             print msg
             if hipchat_msg:
-                msg += '<a href="http://su01:8000/log/sync/{}">sync log</a>'.format(config)
+                msg += '<a href="http://su07:8000/log/sync/{}">sync log</a>'.format(config)
                 hipchat_msg(msg, message_format='html')
 
             assert returncode == 0, "Subprocess failed. Check error above."
