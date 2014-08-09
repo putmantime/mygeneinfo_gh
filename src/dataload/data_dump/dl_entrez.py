@@ -106,7 +106,7 @@ def download(path, no_confirm=False):
 def parse_gbff(path):
     import glob
     from parse_refseq_gbff import main
-    refseq_folder = os.path.join(DATA_FOLDER, 'refseq')
+    refseq_folder = os.path.join(path, 'refseq')
     gbff_files = glob.glob(os.path.join(refseq_folder, '*.rna.gbff.gz'))
     assert len(gbff_files) == 6, 'Missing "*.gbff.gz" files? Found %d (<6):\n%s' % (len(gbff_files), '\n'.join(gbff_files))
     main(refseq_folder)
