@@ -18,7 +18,8 @@ Usage:
      python dl_ensembl.py check      # Check the lastest Ensembl/BioMart version
      python dl_ensembl.py <ensembl_ver>   # perform the actual download
 '''
-import sys, os
+import sys
+import os
 import time
 from ftplib import FTP
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
@@ -31,7 +32,7 @@ from config import DATA_ARCHIVE_ROOT
 import httplib2
 
 
-ENSEMBL_FOLDER=os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/ensembl')
+ENSEMBL_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/ensembl')
 
 MART_URL = "http://www.biomart.org/biomart/martservice"
 MART_URL = "http://uswest.ensembl.org/biomart/martservice"
@@ -40,34 +41,36 @@ XML_QUERY_TEMPLATE_EXAMPLE = '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Query>
 <Query  virtualSchemaName = "default" formatter = "TSV" header = "0" uniqueRows = "1" count = "" datasetConfigVersion = "0.6" >
 
-	<Dataset name = "hsapiens_gene_ensembl" interface = "default" >
-		<Attribute name = "ensembl_gene_id" />
-		<Attribute name = "ensembl_transcript_id" />
-		<Attribute name = "ensembl_peptide_id" />
-	</Dataset>
+    <Dataset name = "hsapiens_gene_ensembl" interface = "default" >
+        <Attribute name = "ensembl_gene_id" />
+        <Attribute name = "ensembl_transcript_id" />
+        <Attribute name = "ensembl_peptide_id" />
+    </Dataset>
 </Query>
 '''
 
 XML_QUERY_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Query>
 <Query  virtualSchemaName = "default" formatter = "TSV" header = "0" uniqueRows = "1" count = "" datasetConfigVersion = "0.6" >
-	<Dataset name = "%(dataset)s" interface = "default" >
+    <Dataset name = "%(dataset)s" interface = "default" >
         %(filters)s
-		%(attributes)s
-	</Dataset>
+        %(attributes)s
+    </Dataset>
 </Query>
 '''
 
-DataSet_D = {'human': 'hsapiens_gene_ensembl',
-           'mouse': 'mmusculus_gene_ensembl',
-           'rat': 'rnorvegicus_gene_ensembl',
-           'fruitfly': 'dmelanogaster_gene_ensembl',
-           'nematode': 'celegans_gene_ensembl',
-           'zebrafish': 'drerio_gene_ensembl',
-           'thale-cress': '',   # not available
-           'frog': 'xtropicalis_gene_ensembl',
-           'pig': 'sscrofa_gene_ensembl',
-           }
+DataSet_D = {
+    'human': 'hsapiens_gene_ensembl',
+    'mouse': 'mmusculus_gene_ensembl',
+    'rat': 'rnorvegicus_gene_ensembl',
+    'fruitfly': 'dmelanogaster_gene_ensembl',
+    'nematode': 'celegans_gene_ensembl',
+    'zebrafish': 'drerio_gene_ensembl',
+    'thale-cress': '',   # not available
+    'frog': 'xtropicalis_gene_ensembl',
+    'pig': 'sscrofa_gene_ensembl',
+}
+
 
 def chk_latest_mart_version():
     ftp = FTP('ftp.ensembl.org')
@@ -76,15 +79,17 @@ def chk_latest_mart_version():
     release_li = [x for x in ftp.nlst('/pub') if x.startswith('/pub/release-')]
     return sorted([int(fn.split('-')[-1]) for fn in release_li])[-1]
 
+
 def _to_int(taxid):
     try:
         return int(taxid)
     except:
         return None
 
+
 def get_all_species(release):
     import tempfile
-    outfile = tempfile.mktemp()+'.txt.gz'
+    outfile = tempfile.mktemp() + '.txt.gz'
     try:
         print 'Downloading "species.txt.gz"...',
         out_f = file(outfile, 'w')
@@ -97,8 +102,8 @@ def get_all_species(release):
 
         #load saved file
         print 'Parsing "species.txt.gz"...',
-        species_li = tab2list(outfile, (1,2,7), header=0)  #db_name,common_name,taxid
-        species_li = [x[:-1]+[_to_int(x[-1])] for x in species_li]
+        species_li = tab2list(outfile, (1, 2, 7), header=0)   # db_name,common_name,taxid
+        species_li = [x[:-1] + [_to_int(x[-1])] for x in species_li]
         print 'Done.'
     finally:
         os.remove(outfile)
@@ -109,6 +114,7 @@ def get_all_species(release):
 
 class MartException(Exception):
     pass
+
 
 class BioMart(object):
     def __init__(self):
@@ -122,9 +128,9 @@ class BioMart(object):
         h = httplib2.Http()
         res, con = h.request(*args, **kwargs)
         if res.status != 200:
-            raise MartException, res
+            raise MartException(res)
         if con.startswith('Query ERROR:'):
-            raise MartException, con
+            raise MartException(con)
         return con
 
     def _make_query_xml(self, dataset, attributes, filters=None):
@@ -139,7 +145,7 @@ class BioMart(object):
 
     def _get_species_table_prefix(self, species):
         x = species.split('_')
-        return x[0][0]+x[1]
+        return x[0][0] + x[1]
 
     def chk_latest_mart_version(self):
         pass
@@ -164,7 +170,7 @@ class BioMart(object):
         cnt_all = 0
         out_f, outfile = safewfile(outfile, prompt=(not self.no_confirm), default='O')
         if header:
-            out_f.write('\t'.join(header)+'\n')
+            out_f.write('\t'.join(header) + '\n')
         print 'Dumping "%s"...' % os.path.split(outfile)[1]
         for species in self.species_li:
             #taxid = taxid_d[species]
@@ -185,7 +191,7 @@ class BioMart(object):
             cnt = 0
             for line in con.split('\n'):
                 if line.strip() != '':
-                    out_f.write(str(taxid)+'\t'+line+'\n')
+                    out_f.write(str(taxid) + '\t' + line + '\n')
                     cnt += 1
                     cnt_all += 1
             print species[0], cnt
@@ -220,7 +226,7 @@ class BioMart(object):
                   'dbprimary_id']
         attributes = ["ensembl_gene_id",
                       "entrezgene"]
-        filters= ["with_entrezgene"]
+        filters = ["with_entrezgene"]
         self._fetch_data(outfile, attributes, filters, header=header, debug=debug)
 
     def get_profile(self, outfile, debug=False):
@@ -246,7 +252,7 @@ class BioMart(object):
                       "ensembl_transcript_id",
                       "ensembl_peptide_id",
                       "interpro", "interpro_short_description", "interpro_description"]
-        filters= ["with_interpro"]
+        filters = ["with_interpro"]
         self._fetch_data(outfile, attributes, filters, header=header, debug=debug)
 
 
@@ -270,7 +276,7 @@ def main():
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
     else:
-        if not (len(os.listdir(DATA_FOLDER))==0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER)=='Y'):
+        if not (len(os.listdir(DATA_FOLDER)) == 0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER) == 'Y'):
             return
     log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'ensembl_mart_%s.log' % mart_version))
     sys.stdout = LogPrint(log_f, timestamp=True)
@@ -283,8 +289,9 @@ def main():
     BM.get_interpro(os.path.join(DATA_FOLDER, 'gene_ensembl__prot_interpro__dm.txt'))
     sys.stdout.close()
 
+
 def main_cron():
-    no_confirm = True   #set it to True for running this script automatically without intervention.
+    no_confirm = True   # set it to True for running this script automatically without intervention.
 
     src_dump = get_src_dump()
     print "Checking latest mart_version:\t",
@@ -302,7 +309,7 @@ def main_cron():
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
     else:
-        if not (no_confirm or len(os.listdir(DATA_FOLDER))==0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER)=='Y'):
+        if not (no_confirm or len(os.listdir(DATA_FOLDER)) == 0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER) == 'Y'):
             sys.exit(0)
 
     log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'ensembl_mart_%s.log' % mart_version), prompt=(not no_confirm), default='O')
@@ -313,7 +320,7 @@ def main_cron():
            'release': mart_version,
            'timestamp': time.strftime('%Y%m%d'),
            'data_folder': DATA_FOLDER,
-           'logfile':logfile,
+           'logfile': logfile,
            'status': 'downloading'}
     src_dump.save(doc)
     t0 = time.time()
@@ -332,10 +339,10 @@ def main_cron():
 
     #mark the download finished successfully
     _updates = {
-                'status': 'success',
-                'time': timesofar(t0),
-                'pending_to_upload': True    # a flag to trigger data uploading
-                }
+        'status': 'success',
+        'time': timesofar(t0),
+        'pending_to_upload': True    # a flag to trigger data uploading
+    }
     src_dump.update({'_id': 'ensembl'}, {'$set': _updates})
 
 
