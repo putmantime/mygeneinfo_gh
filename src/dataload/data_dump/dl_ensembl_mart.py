@@ -199,7 +199,7 @@ class BioMart(object):
                   'gene_chrom_start', 'gene_chrom_end', 'chr_name', 'chrom_strand',
                   'description']
         attributes = ["ensembl_gene_id",
-                      "external_gene_id",
+                      "external_gene_name",   # symbols, called "external_gene_id" before release 76
                       "start_position", "end_position", "chromosome_name", "strand",
                       "description"]
         self._fetch_data(outfile, attributes, header=header, debug=debug)
