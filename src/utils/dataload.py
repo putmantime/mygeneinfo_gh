@@ -215,7 +215,7 @@ def tabfile_feeder(datafile, header=1, sep='\t',
             if not includefn or includefn(ld):
                 lineno += 1
                 if coerce_unicode:
-                    yield [unicode(x, encoding='utf-8') for x in ld]
+                    yield [unicode(x, encoding='utf-8', errors='replace') for x in ld]
                 else:
                     yield ld
     except ValueError:
