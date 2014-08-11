@@ -51,7 +51,7 @@ XML_QUERY_TEMPLATE_EXAMPLE = '''<?xml version="1.0" encoding="UTF-8"?>
 
 XML_QUERY_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Query>
-<Query  virtualSchemaName = "default" formatter = "TSV" header = "0" uniqueRows = "1" count = "" datasetConfigVersion = "0.6" >
+<Query  virtualSchemaName = "%(virtual_schema)s" formatter = "TSV" header = "0" uniqueRows = "1" count = "" datasetConfigVersion = "0.6" >
     <Dataset name = "%(dataset)s" interface = "default" >
         %(filters)s
         %(attributes)s
@@ -117,12 +117,15 @@ class MartException(Exception):
 
 
 class BioMart(object):
-    def __init__(self):
-        self.url = MART_URL
-        self.template = XML_QUERY_TEMPLATE
-        #self.species_li = species_li
+    url = MART_URL
+    template = XML_QUERY_TEMPLATE
 
+    def __init__(self, release=None, species_li=None):
+        self.species_li = species_li
+        self.release = release
         self.no_confirm = False
+        if not self.species_li and self.release:
+            self.get_species_list()
 
     def _query(self, *args, **kwargs):
         h = httplib2.Http()
@@ -139,13 +142,24 @@ class BioMart(object):
             filter_xml = '\n'.join(['<Filter name = "%s" excluded = "0"/>' % filter for filter in filters])
         else:
             filter_xml = ''
-        return XML_QUERY_TEMPLATE % {'dataset': dataset,
+        return XML_QUERY_TEMPLATE % {'virtual_schema': self.get_virtual_schema(),
+                                     'dataset': dataset,
                                      'attributes': attrib_xml,
                                      'filters': filter_xml}
+
+    def get_species_list(self):
+        self.species_li = get_all_species(self.release)
+        return self.species_li
+
+    def get_virtual_schema(self):
+        return 'default'
 
     def _get_species_table_prefix(self, species):
         x = species.split('_')
         return x[0][0] + x[1]
+
+    def get_dataset_name(self, species):
+        return '%s_gene_ensembl' % self._get_species_table_prefix(species[0])
 
     def chk_latest_mart_version(self):
         pass
@@ -173,9 +187,7 @@ class BioMart(object):
             out_f.write('\t'.join(header) + '\n')
         print 'Dumping "%s"...' % os.path.split(outfile)[1]
         for species in self.species_li:
-            #taxid = taxid_d[species]
-            #dataset = DataSet_D[species
-            dataset = '%s_gene_ensembl' % self._get_species_table_prefix(species[0])
+            dataset = self.get_dataset_name(species)
             taxid = species[2]
             if not dataset:
                 continue
@@ -200,8 +212,8 @@ class BioMart(object):
 
     def get_gene__main(self, outfile, debug=False):
         header = ['taxonomy_id',
-                  'gene_stable_id',
-                  'display_id',
+                  'ensembl_gene_id',
+                  'symbol',
                   'gene_chrom_start', 'gene_chrom_end', 'chr_name', 'chrom_strand',
                   'description']
         attributes = ["ensembl_gene_id",
