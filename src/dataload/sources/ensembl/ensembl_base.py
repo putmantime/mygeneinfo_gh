@@ -136,6 +136,15 @@ class EnsemblParser:
         load_done('[%d]' % len(ensembl2interpro))
         return self.convert2entrez(ensembl2interpro)
 
+    def load_ensembl2pfam(self):
+        #Prosite
+        DATAFILE = os.path.join(DATA_FOLDER, 'gene_ensembl__prot_pfam__dm.txt')
+        load_start(DATAFILE)
+        ensembl2pfam = dict_nodup(tab2dict(DATAFILE, (1, 4), 0))
+        ensembl2pfam = value_convert(ensembl2pfam, lambda x: {'pfam': x}, traverse_list=False)
+        load_done('[%d]' % len(ensembl2pfam))
+        return self.convert2entrez(ensembl2pfam)
+
     def convert2entrez(self, ensembl2x):
         '''convert a dict with ensembl gene ids as the keys to matching entrezgene ids as the keys.'''
         if not self.ensembl2entrez_li:

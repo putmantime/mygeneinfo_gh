@@ -267,6 +267,19 @@ class BioMart(object):
         filters = ["with_interpro"]
         self._fetch_data(outfile, attributes, filters, header=header, debug=debug)
 
+    def get_pfam(self, outfile, debug=False):
+        header = ['taxonomy_id',
+                  'gene_stable_id',
+                  'transcript_stable_id',
+                  'translation_stable_id',
+                  'pfam']
+        attributes = ["ensembl_gene_id",
+                      "ensembl_transcript_id",
+                      "ensembl_peptide_id",
+                      "pfam"]
+        filters = ["with_protein_feature_pfam"]
+        self._fetch_data(outfile, attributes, filters, header=header, debug=debug)
+
 
 def main():
     if len(sys.argv) == 2 and sys.argv[1] == 'check':
@@ -346,6 +359,7 @@ def main_cron():
 
         BM.get_profile(os.path.join(DATA_FOLDER, 'gene_ensembl__prot_profile__dm.txt'))
         BM.get_interpro(os.path.join(DATA_FOLDER, 'gene_ensembl__prot_interpro__dm.txt'))
+        BM.get_pfam(os.path.join(DATA_FOLDER, 'gene_ensembl__prot_pfam__dm.txt'))
     finally:
         sys.stdout.close()
 
