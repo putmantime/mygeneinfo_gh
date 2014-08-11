@@ -30,7 +30,8 @@ __sources_dict__ = {
         'ensembl.ensembl_acc',
         'ensembl.ensembl_genomic_pos',
         'ensembl.ensembl_prosite',
-        'ensembl.ensembl_interpro'
+        'ensembl.ensembl_interpro',
+        'ensembl.ensembl_pfam'
     ],
     'uniprot': [
         'uniprot',
@@ -42,7 +43,7 @@ __sources_dict__ = {
     'reporter': ['reporter'],
     'ucsc':     ['ucsc.ucsc_exons'],
     'cpdb':     ['cpdb']
-    }
+}
 
 __sources__ = None   # should be a list defined at runtime
 
@@ -140,13 +141,13 @@ class GeneDocSource(Document):
                 print 'Uploading "geneid_d" to GridFS...',
                 t0 = time.time()
                 geneid_d = self.get_geneid_d()
-                dump2gridfs(geneid_d, self.__collection__+'__geneid_d.pyobj', self.db)
+                dump2gridfs(geneid_d, self.__collection__ + '__geneid_d.pyobj', self.db)
                 print 'Done[%s]' % timesofar(t0)
             if getattr(self, 'ENSEMBL_GENEDOC_ROOT', False):
                 print 'Uploading "mapping2entrezgene" to GridFS...',
                 t0 = time.time()
                 x2entrezgene_list = self.get_mapping_to_entrez()
-                dump2gridfs(x2entrezgene_list, self.__collection__+'__2entrezgene_list.pyobj', self.db)
+                dump2gridfs(x2entrezgene_list, self.__collection__ + '__2entrezgene_list.pyobj', self.db)
                 print 'Done[%s]' % timesofar(t0)
 
         if update_master:
@@ -185,7 +186,7 @@ class GeneDocSource(Document):
 
 def register_sources():
     for src in __sources__:
-        src_m = importlib.import_module('dataload.sources.'+src)
+        src_m = importlib.import_module('dataload.sources.' + src)
         metadata = src_m.__metadata__
         name = src + '_doc'
         metadata['load_genedoc'] = src_m.load_genedoc
@@ -200,18 +201,18 @@ def register_sources():
 
 # register_sources()
 def get_src(src):
-    _src = conn[src+'_doc']()
+    _src = conn[src + '_doc']()
     return _src
 
 
 def load_src(src, **kwargs):
     print "Loading %s..." % src
-    _src = conn[src+'_doc']()
+    _src = conn[src + '_doc']()
     _src.load(**kwargs)
 
 
 def update_mapping(src):
-    _src = conn[src+'_doc']()
+    _src = conn[src + '_doc']()
     _src.load(update_data=False, update_master=True)
 
 
@@ -225,7 +226,7 @@ def get_mapping():
     properties = {}
     for src in __sources__:
         print "Loading mapping from %s..." % src
-        _src = conn[src+'_doc']()
+        _src = conn[src + '_doc']()
         _field_properties = _src.get_mapping()
         properties.update(_field_properties)
     mapping["properties"] = properties
