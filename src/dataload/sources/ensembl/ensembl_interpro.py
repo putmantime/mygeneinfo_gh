@@ -1,7 +1,7 @@
 from ensembl_base import EnsemblParser
 
 __metadata__ = {
-    '__collection__' : 'ensembl_interpro',
+    '__collection__': 'ensembl_interpro',
     'structure': {'interpro': None},
     # 'structure': {
     #               'interpro': {
@@ -22,25 +22,26 @@ def load_genedoc(self=None):
 
 def get_mapping(self=None):
     mapping = {
-        "interpro" : {"dynamic" : False,
-                      "path": "just_name",
-                      "properties" : {
-                          "id" : {
-                            "type" : "string",
-                            "analyzer": "string_lowercase",
-                            "index_name": "interpro"
-                          },
-                          "desc" : {
-                            "type" : "string",
-                            "index": "no",
-                            "include_in_all": False
-                          },
-                          "short_desc" : {
-                            "type" : "string",
-                            "index": "no",
-                            "include_in_all": False
-                          }
-                     }
+        "interpro": {
+            "dynamic": False,
+            "path": "just_name",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "analyzer": "string_lowercase",
+                    "index_name": "interpro"
+                },
+                "desc": {
+                    "type": "string",
+                    "index": "no",
+                    "include_in_all": False
+                },
+                "short_desc": {
+                    "type": "string",
+                    "index": "no",
+                    "include_in_all": False
+                }
+            }
         }
     }
     return mapping
