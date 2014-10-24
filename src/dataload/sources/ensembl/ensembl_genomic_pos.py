@@ -1,10 +1,13 @@
 from ensembl_base import EnsemblParser
-from mongokit import OR, IS
+# from mongokit import OR, IS
 
 
 __metadata__ = {
-    '__collection__' : 'ensembl_genomic_pos',
-    'structure': {'genomic_pos': None},
+    '__collection__': 'ensembl_genomic_pos',
+    'structure': {
+        'genomic_pos': None,
+        'genomic_pos_hg19': None
+    },
     # 'structure': {
     #               'genomic_pos': {
     #                     "chr": unicode,
@@ -25,15 +28,31 @@ def load_genedoc(self=None):
 
 def get_mapping(self=None):
     mapping = {
-        "genomic_pos" : {"dynamic" : False,
-                         "type" : "nested",                 #index as nested
-                         "properties" : {
-                             "chr" : {"type" : "string"},
-                             "start" : {"type" : "long"},
-                             "end" : {"type" : "long"},
-                             "strand" : {"type": "byte",
-                                         "enabled" : False},
-                        },
+        "genomic_pos": {
+            "dynamic": False,
+            "type": "nested",                 # index as nested
+            "properties": {
+                "chr": {"type": "string"},
+                "start": {"type": "long"},
+                "end": {"type": "long"},
+                "strand": {
+                    "type": "byte",
+                    "enabled": False
+                },
+            },
+        },
+        "genomic_pos_hg19": {
+            "dynamic": False,
+            "type": "nested",                 # index as nested
+            "properties": {
+                "chr": {"type": "string"},
+                "start": {"type": "long"},
+                "end": {"type": "long"},
+                "strand": {
+                    "type": "byte",
+                    "enabled": False
+                },
+            },
         }
     }
     return mapping
