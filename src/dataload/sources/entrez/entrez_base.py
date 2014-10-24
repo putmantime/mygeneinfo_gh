@@ -71,8 +71,11 @@ class GeneInfoParser(EntrezParserBase):
 
             for x in dbxrefs.split('|'):
                 if x=='-': continue
+                xd = x.split(':')
+                if len(xd) == 3 and xd[0] == xd[1] and xd[0] in ['HGNC', 'MGI']:
+                    xd = xd[1:]      # a fix for NCBI bug for dup xref prefix, 'HGNC:HGNC:36328'
                 try:
-                    _db, _id = x.split(':')
+                    _db, _id = xd
                 except:
                     print x
                     raise
