@@ -6,11 +6,11 @@ from utils.dataload import (load_start, load_done, tab2dict,
 
 from dataload import get_data_folder
 
-#DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot')
+# DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot')
 DATA_FOLDER = os.path.join(get_data_folder('ucsc'), 'goldenPath/currentGenomes')
 
 
-def load_exons_for_species(species):
+def load_exons_for_species(species, exons_key='exons'):
     refflat_file = os.path.join(DATA_FOLDER, species, 'database/refFlat.txt.gz')
     reflink_file = os.path.join(DATA_FOLDER, species, 'database/refLink.txt.gz')
 
@@ -29,7 +29,7 @@ def load_exons_for_species(species):
         assert len(exons) == int(ld[8]), (len(exons), int(ld[8]))
         ref2exons.append((refseq, {
             'chr': chr,
-            'strand': -1 if ld[3]=='-' else 1,
+            'strand': -1 if ld[3] == '-' else 1,
             'txstart': int(ld[4]),
             'txend': int(ld[5]),
             'cdsstart': int(ld[6]),
@@ -43,13 +43,30 @@ def load_exons_for_species(species):
         geneid = refseq2gene.get(refseq, None)
         if geneid and geneid != '0':
             if geneid not in gene2exons:
-                gene2exons[geneid] = {'exons': {refseq: ref2exons[refseq]}}
+                gene2exons[geneid] = {exons_key: {refseq: ref2exons[refseq]}}
             else:
-                gene2exons[geneid]['exons'][refseq] = ref2exons[refseq]
+                gene2exons[geneid][exons_key][refseq] = ref2exons[refseq]
 
     load_done('[%d, %s]' % (len(gene2exons), timesofar(t0)))
 
     return gene2exons
+
+
+def load_exons_for_human():
+    '''We currently load exons on both hg19 and hg38 for human genes,
+       so it will be loaded separately from other species.
+           exons  -->   hg38
+           exons_hg19  -->  hg19
+    '''
+    gene2exons_hg19 = load_exons_for_species('Homo_sapiens', exons_key='exons_hg19')
+    gene2exons = load_exons_for_species('../hg38')
+    for gid in gene2exons_hg19:
+        if gid in gene2exons:
+            gene2exons[gid].update(gene2exons_hg19[gid])
+        else:
+            gene2exons[gid] = gene2exons_hg19[gid]
+    return gene2exons
+
 
 def load_ucsc_exons():
     print('DATA_FOLDER: ' + DATA_FOLDER)
@@ -59,7 +76,10 @@ def load_ucsc_exons():
     gene2exons = {}
     for species in species_li:
         print species, '...'
-        gene2exons.update(load_exons_for_species(species))
+        if species == 'Homo_sapiens':
+            gene2exons.update(load_exons_for_human())
+        else:
+            gene2exons.update(load_exons_for_species(species))
 
     load_done('[%d, %s]' % (len(gene2exons), timesofar(t0)))
 
