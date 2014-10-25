@@ -36,7 +36,7 @@ def dispatch(src):
         upload_logfile = os.path.join(DATA_ARCHIVE_ROOT, '{}_upload.log'.format(src))
 
     log_f, logfile = safewfile(upload_logfile, prompt=False, default='O')
-    p = Popen(['python', '-m', 'dataload/start', src],
+    p = Popen(['python', '-u', '-m', 'dataload/start', src],
               stdout=log_f, stderr=STDOUT, cwd=src_path)
     p.logfile = logfile
     p.log_f = log_f

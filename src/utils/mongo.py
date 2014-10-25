@@ -3,13 +3,17 @@ from mongokit import Connection
 from config import (DATA_SRC_SERVER, DATA_SRC_PORT, DATA_SRC_DATABASE,
                     DATA_SRC_MASTER_COLLECTION, DATA_SRC_DUMP_COLLECTION,
                     DATA_SRC_BUILD_COLLECTION,
+                    DATA_SERVER_USERNAME, DATA_SERVER_PASSWORD,
                     DATA_TARGET_SERVER, DATA_TARGET_PORT, DATA_TARGET_DATABASE,
                     DATA_TARGET_MASTER_COLLECTION)
 from utils.common import timesofar
 
 
 def get_conn(server, port):
-    conn = Connection(server, port)
+    uri = "mongodb://{}:{}@{}:{}".format(DATA_SERVER_USERNAME,
+                                         DATA_SERVER_PASSWORD,
+                                         server, port)
+    conn = Connection(uri)
     return conn
 
 

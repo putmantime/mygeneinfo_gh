@@ -170,13 +170,12 @@ class IntervalQueryHandler(tornado.web.RequestHandler):
 class MongoViewer(tornado.web.RequestHandler):
     def get(self, db, collection=None, id=None):
         import random
-        from config import DATA_SRC_SERVER, DATA_SRC_PORT
-        from mongokit import Connection
+        from utils.mongo import get_src_conn
 
         get_random = self.get_argument('random', None) != 'false'
         size = int(self.get_argument('size', 10))
 
-        conn = Connection(DATA_SRC_SERVER, DATA_SRC_PORT)
+        conn = get_src_conn()
         if collection:
             if collection == 'fs':
                 import gridfs
