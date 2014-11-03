@@ -791,8 +791,14 @@ class DataBuilder():
         self._stats = last_build['stats']
         assert last_build.get('target', None), \
             'Abort. Last build target_collection is not available.'
-        target_collection = last_build['target']
-        #target_collection = "genedoc_{}_current".format(build_config)  ######
+
+        # Get the source collection to build the ES index
+        # IMPORTANT: the collection in last_build['target'] does not contain _timestamp field,
+        #            only the "genedoc_*_current" collection does. When "timestamp" is enabled
+        #            in mappings, last_build['target'] collection won't be indexed by ES correctly,
+        #            therefore, we use "genedoc_*_current" collection as the source here:
+        #target_collection = last_build['target']
+        target_collection = "genedoc_{}_current".format(build_config)
         _db = get_target_db()
         target_collection = _db[target_collection]
         print
@@ -827,7 +833,7 @@ class DataBuilder():
                     print "Abort."
                     return
             es_idxer.create_index()
-            #es_idxer.delete_index_type(es_idxer.ES_INDEX_es.pTYPE, noconfirm=True)
+            #es_idxer.delete_index_type(es_idxer.ES_INDEX_TYPE, noconfirm=True)
             es_idxer.build_index(target_collection, verbose=False)
             # time.sleep(10)    # pausing 10 second here
             # if es_idxer.wait_till_all_shards_ready():

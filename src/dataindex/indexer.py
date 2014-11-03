@@ -2,7 +2,7 @@ import time
 from optparse import OptionParser
 
 from databuild.builder import DataBuilder, timesofar
-#from utils.es import es_clean_indices
+# from utils.es import es_clean_indices
 from utils.common import ask
 from .tunnel import open_tunnel, es_local_tunnel_port
 
@@ -75,7 +75,7 @@ def main():
                              es_host='127.0.0.1:' + str(es_local_tunnel_port))
             print '<<<<<<"{}"...done. {}'.format(_conf, timesofar(t0))
 
-        print '='*20
+        print '=' * 20
         print "Finished.", timesofar(t00)
 
 
