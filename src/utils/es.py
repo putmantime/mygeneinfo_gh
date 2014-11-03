@@ -1,6 +1,6 @@
 from pyes import ES
 from pyes.exceptions import (NotFoundException, IndexMissingException,
-                             ElasticSearchException, TypeMissingException)
+                             TypeMissingException)
 from pyes.query import MatchAllQuery
 from pyes.utils import make_path
 import logging
@@ -53,8 +53,8 @@ class ESIndexer(object):
         self.step = step
         self.conn.bulk_size = self.step
         self.number_of_shards = 5      # set number_of_shards when create_index
-        self.s = None     # optionally, can specify number of records to skip,
-                          # useful to continue indexing after an error.
+        self.s = None   # optionally, can specify number of records to skip,
+                        # useful to continue indexing after an error.
         self.use_parallel = False
         self._mapping = mapping
 
@@ -84,13 +84,13 @@ class ESIndexer(object):
         index_name = self.ES_INDEX_NAME
         # Check if index_type exists
         try:
-            self.conn.get_mapping(index_type, index_name)
+            self.conn.indices.get_mapping(index_type, index_name, raw=True)
         except TypeMissingException:
             print 'Error: index type "%s" does not exist in index "%s".' % (index_type, index_name)
             return
         path = '/%s/%s' % (index_name, index_type)
         if noconfirm or ask('Confirm to delete all data under "%s":' % path) == 'Y':
-            return self.conn.delete_mapping(index_name, index_type)
+            return self.conn.indices.delete_mapping(index_name, index_type)
 
     def verify_mapping(self, update_mapping=False):
         '''Verify if index and mapping exist, update mapping if mapping does not exist,
@@ -100,7 +100,7 @@ class ESIndexer(object):
         index_name = self.ES_INDEX_NAME
         index_type = self.ES_INDEX_TYPE
 
-        #Test if index exists
+        # Test if index exists
         try:
             print "Opening index...", conn.indices.open_index(index_name)
         except NotFoundException:
@@ -108,19 +108,17 @@ class ESIndexer(object):
             return -1
 
         try:
-            conn.indices.get_mapping(index_type, index_name, raw=True)
-            empty_mapping = False
-        except IndexMissingException:
+            mapping = conn.indices.get_mapping(index_type, index_name, raw=True)
+            # For some pyes versions, the above returns empty dict, instead of
+            # raising an exception
+            empty_mapping = mapping == {}
+        except (IndexMissingException, TypeMissingException):
+            empty_mapping = True
+
+        if empty_mapping:
             #if no existing mapping available for index_type
             #force update_mapping to True
-            empty_mapping = True
             update_mapping = True
-
-#        empty_mapping = not cur_mapping[index_name].get(index_type, {})
-#        if empty_mapping:
-#            #if no existing mapping available for index_type
-#            #force update_mapping to True
-#            update_mapping = True
 
         if update_mapping:
             print "Updating mapping...",
@@ -221,7 +219,7 @@ class ESIndexer(object):
                                           max_num_segments=5)
 
     def get_field_mapping(self):
-#        raise NotImplementedError
+        # raise NotImplementedError
         return self._mapping
 
     def build_index(self, collection, update_mapping=False, verbose=False, query=None):
@@ -304,6 +302,7 @@ class ESIndexer(object):
             cnt += 1
             if verbose:
                 print cnt, ':', doc['_id']
+
         return cnt
 
     def _build_index_parallel(self, collection, verbose=False):
