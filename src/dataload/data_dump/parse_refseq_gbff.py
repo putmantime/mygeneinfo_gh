@@ -49,9 +49,10 @@ class GBFFParser():
         '''Return geneid as integer, None if not found.'''
         geneid = None
         gene_feature = [x for x in rec.features if x.type == 'gene']
-        if len(gene_feature) == 0 and rec.id == 'NR_001526.1':
-            print "Known error for NR_001526.1. Fixed."
-            return '252949'         # a temp fix for this wrong rec from NCBI
+        # NCBI has now fixed this issue (https://twitter.com/kdpru/status/474673626730741761)
+        # if len(gene_feature) == 0 and rec.id == 'NR_001526.1':
+        #     print "Known error for NR_001526.1. Fixed."
+        #     return '252949'         # a temp fix for this wrong rec from NCBI
         assert len(gene_feature) == 1, '#: {}, id: {}'.format(len(gene_feature), rec.id)
         gene_feature = gene_feature[0]
         db_xref = gene_feature.qualifiers.get('db_xref', None)
