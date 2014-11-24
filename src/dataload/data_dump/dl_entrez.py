@@ -17,6 +17,8 @@ import sys
 import os
 import os.path
 import time
+import re
+from ftplib import FTP, error_temp
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
 from utils.common import ask, safewfile, LogPrint, timesofar
@@ -36,12 +38,12 @@ FILE_LIST = {
                         'gene_history.gz']},
 
     'refseq': {'url': 'ftp://ftp.ncbi.nih.gov/refseq/',
-               'files': ['H_sapiens/mRNA_Prot/human.rna.gbff.gz',
-                         'M_musculus/mRNA_Prot/mouse.rna.gbff.gz',
-                         'R_norvegicus/mRNA_Prot/rat.rna.gbff.gz',
-                         'D_rerio/mRNA_Prot/zebrafish.rna.gbff.gz',
-                         'X_tropicalis/mRNA_Prot/frog.rna.gbff.gz',
-                         'B_taurus/mRNA_Prot/cow.rna.gbff.gz',
+               'files': ['H_sapiens/mRNA_Prot/human.*.rna.gbff.gz',
+                         'M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz',
+                         'R_norvegicus/mRNA_Prot/rat.*.rna.gbff.gz',
+                         'D_rerio/mRNA_Prot/zebrafish.*.rna.gbff.gz',
+                         'X_tropicalis/mRNA_Prot/frog.*.rna.gbff.gz',
+                         'B_taurus/mRNA_Prot/cow.*.rna.gbff.gz',
                          ]},
 
     'Homologene': {'url': 'ftp://ftp.ncbi.nih.gov/pub/HomoloGene/current/',
@@ -63,11 +65,44 @@ def _get_ascp_cmdline(url):
     cmd = cmd + _url + ' .'
     return cmd
 
+def _expand_wildchar_urls(url):
+    '''
+    do globbing on ftp url with wildchar to get the list of matching urls.
+    if url contains no wildchar, return url as it is.
+    '''
+    if url.find('*') != -1 or url.find('?') != -1:
+        mat = re.match('^ftp://([\w\.]+)(/.+$)', url)
+        host, path = mat.groups()
+        ftp = FTP(host)
+        ftp.login()
+        try:
+            url_list = ftp.nlst(path)
+            ftp.quit()
+        except error_temp:
+            # not found
+            url_list = []
+        url_list = ['ftp://' + host + fn for fn in url_list]
+        url_list.sort()
+    else:
+        url_list = [url]
+    return url_list
+
+def _expand_refseq_files():
+    '''expand refseq url list with wildchar.'''
+    base = FILE_LIST['refseq']['url']
+    _files = []
+    for f in FILE_LIST['refseq']['files']:
+        _files.extend(_expand_wildchar_urls(base + f))
+    _i = len(base)
+    _files = [fn[_i:] for fn in _files]    # remove leading "ftp://ftp.ncbi.nih.gov/refseq/"
+    FILE_LIST['refseq']['files'] = _files
+    return _files
 
 def download(path, no_confirm=False):
     out = []
     orig_path = os.getcwd()
     try:
+        _expand_refseq_files()
         for subfolder in FILE_LIST:
             filedata = FILE_LIST[subfolder]
             baseurl = filedata['url']
@@ -108,7 +143,7 @@ def parse_gbff(path):
     from parse_refseq_gbff import main
     refseq_folder = os.path.join(path, 'refseq')
     gbff_files = glob.glob(os.path.join(refseq_folder, '*.rna.gbff.gz'))
-    assert len(gbff_files) == 6, 'Missing "*.gbff.gz" files? Found %d (<6):\n%s' % (len(gbff_files), '\n'.join(gbff_files))
+    assert len(gbff_files) == 15, 'Missing "*.gbff.gz" files? Found %d (<6):\n%s' % (len(gbff_files), '\n'.join(gbff_files))
     main(refseq_folder)
 
 
