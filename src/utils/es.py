@@ -127,7 +127,7 @@ class ESIndexer(object):
                 print conn.indices.delete_mapping(index_name, index_type)
             _mapping = self.get_field_mapping()
             print conn.indices.put_mapping(index_type,
-                                           _mapping,
+                                           self._mapping,
                                            [index_name])
 
     def update_mapping_meta(self, meta):
@@ -222,7 +222,7 @@ class ESIndexer(object):
         # raise NotImplementedError
         return self._mapping
 
-    def build_index(self, collection, update_mapping=False, verbose=False, query=None):
+    def build_index(self, collection, update_mapping=False, verbose=False, query=None, bulk=True):
         conn = self.conn
         index_name = self.ES_INDEX_NAME
         #index_type = self.ES_INDEX_TYPE
@@ -243,7 +243,7 @@ class ESIndexer(object):
             if self.use_parallel:
                 cnt = self._build_index_parallel(collection, verbose)
             else:
-                cnt = self._build_index_sequential(collection, verbose, query=query)
+                cnt = self._build_index_sequential(collection, verbose, query=query, bulk=bulk)
         finally:
             #restore some settings after bulk indexing is done.
             conn.indices.update_settings(index_name, {
@@ -276,7 +276,7 @@ class ESIndexer(object):
             #     "auto_expand_replicas": "0-all",   # expand replicas to all nodes
             # })
 
-    def _build_index_sequential(self, collection, verbose=False, query=None):
+    def _build_index_sequential(self, collection, verbose=False, query=None, bulk=True):
         conn = self.conn
         index_name = self.ES_INDEX_NAME
         index_type = self.ES_INDEX_TYPE
@@ -297,7 +297,7 @@ class ESIndexer(object):
             # ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-index_.html#index-replication
             #querystring_args = {'replication': 'async'}
             querystring_args = None
-            conn.index(doc, index_name, index_type, doc['_id'], bulk=True,
+            conn.index(doc, index_name, index_type, doc['_id'], bulk=bulk,
                        querystring_args=querystring_args)
             cnt += 1
             if verbose:
