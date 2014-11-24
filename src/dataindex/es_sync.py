@@ -7,6 +7,7 @@ import os
 from pprint import pprint
 from pyes import TermQuery
 
+from config import TARGET_ES_INDEX_SUFFIX
 from utils.es import ESIndexer
 from utils.mongo import get_target_db, get_src_build
 from utils.common import iter_n, timesofar, ask, loadobj
@@ -63,7 +64,7 @@ class ESIndexer2(ESIndexer):
         src = changes['source']
         prefix = self._split_source_name(src)[0]
         #assert self.ES_INDEX_NAME.startswith(prefix+'_current'),\
-        _es_target = prefix + '_current_1'
+        _es_target = prefix + TARGET_ES_INDEX_SUFFIX    # '_current_1'
         assert self.ES_INDEX_NAME == _es_target,\
             '"{}" does not match "{}"'.format(self.ES_INDEX_NAME, _es_target)
         print('\033[34;06m{}\033[0m:'.format('[Pending changes]'))
@@ -184,7 +185,7 @@ class ESIndexer2(ESIndexer):
             print('ERROR!!!\n\t Should be "{}", but get "{}"'.format(len(_li1), len(_li2)))
 
 
-#esi = utils.es.ESIndexer2('genedoc_mygene_current_1', es_host='su02:9500')
+#esi = utils.es.ESIndexer2('genedoc_mygene' + TARGET_ES_INDEX_SUFFIX, es_host='su02:9500')
 #esi.apply_changes(changes)
 #meta = esi.get_mapping_meta(changes)
 #esi.update_mapping_meta({'_meta': meta})
@@ -227,11 +228,11 @@ def main():
         return -2
 
     _es_host = 'localhost:' + str(es_local_tunnel_port)
-    _es_index = config + '_current_1'
+    _es_index = config + TARGET_ES_INDEX_SUFFIX    # '_current_1'
 
     # for test
     #_es_host = 'localhost:9200'
-    #_es_index = config + '_current_1'
+    #_es_index = config + TARGET_ES_INDEX_SUFFIX    # '_current_1'
 
     with open_tunnel():
         esi = ESIndexer2(_es_index, es_host=_es_host)
