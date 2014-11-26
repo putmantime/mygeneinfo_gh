@@ -26,7 +26,7 @@ from utils.dataload import anyfile
 from config import DATA_ARCHIVE_ROOT
 
 timestamp = time.strftime('%Y%m%d')
-DATA_FOLDER=os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez', timestamp, 'refseq')
+DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez', timestamp, 'refseq')
 
 
 class GBFFParser():
@@ -68,14 +68,18 @@ class GBFFParser():
         comment = rec.annotations.get('comment', None)
         if comment:
             if comment.find('Summary:') != -1:
-                summary = SubStr(comment, 'Summary: ').replace('\n', ' ')
-                for end_str in ['[provided by RefSeq].',
+                summary = SubStr(comment, 'Summary: ',).replace('\n', ' ')
+                for end_str in [# '[provided by RefSeq].',
+                                '[provided by ',
+                                '[supplied by ',
+                                '##',
+                                # '[RGD',
                                 'COMPLETENESS:',
                                 'Sequence Note:',
                                 'Transcript Variant:',
                                 'Publication Note:']:
                     if summary.find(end_str) != -1:
-                        summary = SubStr(summary,  end_string=end_str)
+                        summary = SubStr(summary, end_string=end_str)
                 summary = summary.strip()
         return summary
 
@@ -87,7 +91,7 @@ class GBFFParser():
             assert len(cds_feature) == 1, self.get_geneid(rec)
             cds_feature = cds_feature[0]
             ec_list = cds_feature.qualifiers.get('EC_number', [])
-            assert type(ec_list) == type([])
+            assert isinstance(ec_list, list)
 #            ec_list = [SubStr(x, 'EC_number="', '"') for x in ec_qualifiers]
         return ec_list
 
@@ -121,7 +125,7 @@ def output_gene2summary(out_d, outfile):
                 out_li.append((geneid, summary))
 
         for geneid, summary in sorted(set(out_li)):
-            out_f.write('%s\t%s\n' % (geneid, summary) )
+            out_f.write('%s\t%s\n' % (geneid, summary))
     out_f.close()
 
 
@@ -149,12 +153,11 @@ def output_gene2ec(out_d, outfile):
 
 
 def main(data_folder):
-#    if '-b' in sys.argv:
-#        batch_mode = True
-#        sys.argv.remove('-b')
-#    else:
-#        batch_mode = False
-
+    # if '-b' in sys.argv:
+    #     batch_mode = True
+    #     sys.argv.remove('-b')
+    # else:
+    #     batch_mode = False
 
     out_d = {}
     gbff_files = glob.glob(os.path.join(data_folder, '*.rna.gbff.gz'))
@@ -166,7 +169,10 @@ def main(data_folder):
             gp = GBFFParser(infile)
             out_li = gp.parse()
             print 'Done! [%s]' % len(out_li)
-            out_d[species] = out_li
+            if species in out_d:
+                out_d[species].extend(out_li)
+            else:
+                out_d[species] = out_li
 
         #Now dump out_d to disk
         outfile = os.path.join(data_folder, 'rna.gbff.parsed.pyobj')
