@@ -53,6 +53,19 @@ def get_mapping(self=None):
                     "enabled": False
                 },
             },
+        },
+        "genomic_pos_mm9": {
+            "dynamic": False,
+            "type": "nested",                 # index as nested
+            "properties": {
+                "chr": {"type": "string"},
+                "start": {"type": "long"},
+                "end": {"type": "long"},
+                "strand": {
+                    "type": "byte",
+                    "enabled": False
+                },
+            },
         }
     }
     return mapping
