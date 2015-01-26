@@ -184,6 +184,18 @@ class ESIndexer2(ESIndexer):
         else:
             print('ERROR!!!\n\t Should be "{}", but get "{}"'.format(len(_li1), len(_li2)))
 
+    def count(self, query=None, index_type=None):
+        '''tmp overwrite count method.'''
+        conn = self.conn
+        index_name = self.ES_INDEX_NAME
+        index_type = index_type or self.ES_INDEX_TYPE
+        if query is None:
+            body = None
+        else:
+            body = query.serialize()
+        path = conn._make_path(index_name, index_type, "_count")
+        return conn._send_request('GET', path, body)
+
 
 #esi = utils.es.ESIndexer2('genedoc_mygene' + TARGET_ES_INDEX_SUFFIX, es_host='su02:9500')
 #esi.apply_changes(changes)
