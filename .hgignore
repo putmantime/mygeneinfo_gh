@@ -1,0 +1,11 @@
+# use glob syntax
+syntax: glob
+*.pyc
+*.pyo
+src/config.py
+logs/*
+src/changes*.pyobj
+
+# use regexp syntax
+syntax: regexp
+
