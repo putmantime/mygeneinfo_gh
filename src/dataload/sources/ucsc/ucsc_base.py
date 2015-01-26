@@ -68,6 +68,23 @@ def load_exons_for_human():
     return gene2exons
 
 
+def load_exons_for_mouse():
+    '''We currently load exons on both mm9 and mm10 for mouse genes,
+       so it will be loaded separately from other species.
+           exons  -->   mm10
+           exons_mm9  -->  mm9
+    '''
+    gene2exons = load_exons_for_species('Mus_musculus')
+    gene2exons_mm9 = load_exons_for_species('../mm9', exons_key='exons_mm9')
+    for gid in gene2exons_mm9:
+        if gid in gene2exons:
+            gene2exons[gid].update(gene2exons_mm9[gid])
+        else:
+            gene2exons[gid] = gene2exons_mm9[gid]
+    return gene2exons
+
+
+
 def load_ucsc_exons():
     print('DATA_FOLDER: ' + DATA_FOLDER)
     species_li = os.listdir(DATA_FOLDER)
@@ -78,6 +95,8 @@ def load_ucsc_exons():
         print species, '...'
         if species == 'Homo_sapiens':
             gene2exons.update(load_exons_for_human())
+        elif species == 'Mus_musculus':
+            gene2exons.update(load_exons_for_mouse())
         else:
             gene2exons.update(load_exons_for_species(species))
 

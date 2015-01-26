@@ -63,6 +63,10 @@ def get_file_list():
     # now add refFlat.txt.gz for hg38
     file_path = 'goldenPath/hg38/database/refFlat.txt.gz'
     fli.append(file_path)
+    # now add refFlat.txt.gz for mm9
+    file_path = 'goldenPath/mm9/database/refFlat.txt.gz'
+    fli.append(file_path)
+
 
     fli = [(file_path, get_ftpfile_lastmodified(ftp, file_path)) for file_path in fli]
     fli = [x for x in fli if x[1]]    # remove item if lastmodified is None

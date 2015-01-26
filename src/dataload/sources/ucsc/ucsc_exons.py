@@ -30,6 +30,12 @@ def get_mapping(self=None):
             "type": "object",
             "index": "no",
             "include_in_all": False
+        },
+        "exons_mm9":  {
+            "dynamic" : False,
+            "type": "object",
+            "index": "no",
+            "include_in_all": False
         }
     }
     return mapping
