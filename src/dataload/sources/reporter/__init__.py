@@ -1,11 +1,11 @@
 from utils.dataload import merge_dict, value_convert
 
 __metadata__ = {
-    '__collection__' : 'reporter',
+    '__collection__': 'reporter',
     'structure': {'reporter': None},
 }
 
-reporter_modules = ['affy_reporter', 'gnf_reporter', 'pigatlas_reporter']
+reporter_modules = ['affy_reporter', 'affy_reporter2', 'gnf_reporter', 'pigatlas_reporter']
 platform_li = []
 for i, module in enumerate(reporter_modules):
     module = __import__('dataload.sources.reporter.'+module, fromlist=[module])
@@ -45,20 +45,20 @@ def get_mapping(self=None):
     }
     '''
 
-    platform_mapping =  {
-                            "type" : "string",
-                            "analyzer": "string_lowercase",
-                            "index_name": "reporter",
-                        }
+    platform_mapping = {
+        "type": "string",
+        "analyzer": "string_lowercase",
+        "index_name": "reporter",
+    }
 
     mapping = {
-        "reporter":  {"dynamic" : False,
-                      "path": "just_name",
-                      "properties" : {}
+        "reporter": {
+            "dynamic": False,
+            "path": "just_name",
+            "properties": {}
         }
     }
     for platform in platform_li:
         mapping['reporter']['properties'][platform] = platform_mapping
 
     return mapping
-
