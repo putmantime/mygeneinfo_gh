@@ -5,6 +5,7 @@ syntax: glob
 src/config.py
 logs/*
 src/changes*.pyobj
+src/_changes/*
 
 # use regexp syntax
 syntax: regexp
