@@ -30,7 +30,7 @@ def get_uniprot_section(uniprotkb_id):
     if len(v) != 2:
         raise ValueError('Invalid UniprotKB ID')
     #return 'TrEMBL' if len(v[0])==6 else "Swiss-Prot"
-    return 'Swiss-Prot' if len(v[0]) == 5 else "TrEMBL"
+    return 'Swiss-Prot' if len(v[0]) <= 5 else "TrEMBL"
 
 def _dict_convert(uniprot_li):
     '''
