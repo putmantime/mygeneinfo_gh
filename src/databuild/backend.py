@@ -144,6 +144,19 @@ class GeneDocMongoDBBackend(GeneDocBackendBase):
         #cur = self.target_collection.find({'$or': [{'_id': _id} for _id in ids]})
         #return cur if asiter else list(cur)
 
+    def count_from_ids(self, ids, step=100000):
+        '''return the count of docs matching with input ids
+           normally, it does not need to query in batches, but MongoDB
+           has a BSON size limit of 16M bytes, so too many ids will raise a
+           pymongo.errors.DocumentTooLarge error.
+        '''
+        total_cnt = 0
+        for i in range(0, len(ids), step):
+            _ids = ids[i:i + step]
+            _cnt = self.target_collection.find({'_id': {'$in': _ids}}).count()
+            total_cnt += _cnt
+        return total_cnt
+
     def finalize(self):
         '''flush all pending writes.'''
         self.target_collection.database.connection.fsync(async=True)
@@ -212,12 +225,16 @@ class GeneDocESBackend(GeneDocBackendBase):
         index_type = self.target_esidxer.ES_INDEX_TYPE
         return conn.get(index_name, index_type, id)
 
-    def mget_from_ids(self, ids, asiter=False):
+    def mget_from_ids(self, ids, asiter=False, step=100000):
         '''ids is an id list.'''
         conn = self.target_esidxer.conn
         index_name = self.target_esidxer.ES_INDEX_NAME
         index_type = self.target_esidxer.ES_INDEX_TYPE
-        res = conn.mget(ids, index_name, index_type)
+        res = []
+        for i in range(0, len(ids), step):
+            _ids = ids[i:i + step]
+            _res = conn.mget(_ids, index_name, index_type)
+            res.extend(_res)
         return iter(res) if asiter else res
 
     def remove_from_ids(self, ids, step=10000):
