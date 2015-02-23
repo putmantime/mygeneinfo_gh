@@ -4,7 +4,7 @@ from uniprot_base import load_uniprot
 #ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/idmapping_selected.tab
 
 __metadata__ = {
-    '__collection__' : 'uniprot',
+    '__collection__': 'uniprot',
     'structure': {'uniprot': None},
 }
 
@@ -16,20 +16,21 @@ def load_genedoc(self=None):
 
 def get_mapping(self=None):
     mapping = {
-        "uniprot":  {"dynamic" : False,
-                     "path": "just_name",
-                     "properties" : {
-                        "Swiss-Prot" : {
-                            "type" : "string",
-                            "analyzer": "string_lowercase",
-                            "index_name": "uniprot",
-                        },
-                        "TrEMBL" : {
-                            "type" : "string",
-                            "analyzer": "string_lowercase",
-                            "index_name": "uniprot",
-                        }
-                     }
-        },
+        "uniprot": {
+            "dynamic": False,
+            "path": "just_name",
+            "properties": {
+                "Swiss-Prot": {
+                    "type": "string",
+                    "analyzer": "string_lowercase",
+                    "index_name": "uniprot",
+                },
+                "TrEMBL": {
+                    "type": "string",
+                    "analyzer": "string_lowercase",
+                    "index_name": "uniprot",
+                }
+            }
+        }
     }
     return mapping

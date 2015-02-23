@@ -1,12 +1,11 @@
 import os.path
-import types
 import time
 from utils.common import timesofar
 from utils.dataload import (load_start, load_done,
                             listitems, dupline_seperator,
                             tabfile_feeder, list2dict, list_nondup,
                             value_convert)
-from config import DATA_ARCHIVE_ROOT
+#from config import DATA_ARCHIVE_ROOT
 from dataload import get_data_folder
 
 #DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot')
@@ -31,7 +30,7 @@ def get_uniprot_section(uniprotkb_id):
     if len(v) != 2:
         raise ValueError('Invalid UniprotKB ID')
     #return 'TrEMBL' if len(v[0])==6 else "Swiss-Prot"
-    return 'Swiss-Prot' if len(v[0])==5 else "TrEMBL"
+    return 'Swiss-Prot' if len(v[0]) == 5 else "TrEMBL"
 
 def _dict_convert(uniprot_li):
     '''
@@ -42,7 +41,7 @@ def _dict_convert(uniprot_li):
     '''
     _dict = list2dict(uniprot_li, 1)
     for k, v in _dict.items():
-        if type(v) is types.ListType:
+        if isinstance(v, list):
             _dict[k] = sorted(v)
     return {'uniprot': _dict}
 
@@ -54,16 +53,16 @@ def load_uniprot():
     t0 = time.time()
     xli = []
     for ld in tabfile_feeder(DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
-        ld = listitems(ld, *(0,1,2,18))    #UniProtKB-AC UniProtKB-ID GeneID Ensembl(Gene)
+        ld = listitems(ld, *(0, 1, 2, 18))    # UniProtKB-AC UniProtKB-ID GeneID Ensembl(Gene)
         for value in dupline_seperator(dupline=ld,
-                                       dup_idx=[2,3],   #GeneID and EnsemblID columns may have duplicates
+                                       dup_idx=[2, 3],   # GeneID and EnsemblID columns may have duplicates
                                        dup_sep='; '):
             value = list(value)
             value[1] = get_uniprot_section(value[1])
             value = tuple(value)
             xli.append(value)
 
-    ensembl2geneid = list2dict([(x[3], x[2]) for x in xli if x[2]!='' and x[3]!=''], 0, alwayslist=True)
+    ensembl2geneid = list2dict([(x[3], x[2]) for x in xli if x[2] != '' and x[3] != ''], 0, alwayslist=True)
     xli2 = []
     for uniprot_acc, section, entrez_id, ensembl_id in xli:
         if entrez_id:
@@ -93,12 +92,12 @@ def load_x(idx, fieldname, cvt_fn=None):
     t0 = time.time()
     xli = []
     for ld in tabfile_feeder(DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
-        ld = listitems(ld, *(2,19,idx))    # GeneID Ensembl(Gene) target_value
+        ld = listitems(ld, *(2, 19, idx))    # GeneID Ensembl(Gene) target_value
         for value in dupline_seperator(dupline=ld,
                                        dup_sep='; '):
             xli.append(value)
 
-    ensembl2geneid = list2dict(list_nondup([(x[1], x[0]) for x in xli if x[0]!='' and x[1]!='']), 0, alwayslist=True)
+    ensembl2geneid = list2dict(list_nondup([(x[1], x[0]) for x in xli if x[0] != '' and x[1] != '']), 0, alwayslist=True)
     xli2 = []
     for entrez_id, ensembl_id, x_value in xli:
         if x_value:
@@ -115,7 +114,7 @@ def load_x(idx, fieldname, cvt_fn=None):
                     xli2.append((ensembl_id, x_value))
 
     gene2x = list2dict(list_nondup(xli2), 0)
-    fn = lambda value: {fieldname: sorted(value) if type(value) is types.ListType else value}
+    fn = lambda value: {fieldname: sorted(value) if isinstance(value, list) else value}
     gene2x = value_convert(gene2x, fn, traverse_list=False)
     load_done('[%d, %s]' % (len(gene2x), timesofar(t0)))
 
