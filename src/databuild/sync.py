@@ -96,16 +96,19 @@ class GeneDocSyncer:
 
     def verify_changes(self, changes):
         _timestamp = changes['timestamp']
+        target = GeneDocMongoDBBackend(self._target_col)
         if changes['add']:
             print('Verifying "add"...', end='')
-            _cnt = self._target_col.find({'_id': {'$in': changes['add']}}).count()
+            # _cnt = self._target_col.find({'_id': {'$in': changes['add']}}).count()
+            _cnt = target.count_from_ids(changes['add'])
             if _cnt == len(changes['add']):
                 print('...{}=={}...OK'.format(_cnt, len(changes['add'])))
             else:
                 print('...{}!={}...ERROR!!!'.format(_cnt, len(changes['add'])))
         if changes['delete']:
             print('Verifying "delete"...', end='')
-            _cnt = self._target_col.find({'_id': {'$in': changes['delete']}}).count()
+            # _cnt = self._target_col.find({'_id': {'$in': changes['delete']}}).count()
+            _cnt = target.count_from_ids(changes['delete'])
             if _cnt == 0:
                 print('...{}==0...OK'.format(_cnt))
             else:
