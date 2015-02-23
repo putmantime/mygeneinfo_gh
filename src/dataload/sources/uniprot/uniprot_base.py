@@ -22,15 +22,16 @@ def get_uniprot_section(uniprotkb_id):
        based on input uniprotkb_id, or entry name.
        The rule is (http://www.uniprot.org/manual/entry_name):
            Swiss-Prot entries have a maximum of 5 characters before
-           the "_", TrEMBL entries have 6 characters before the "_" (the accession
+           the "_", TrEMBL entries have 6 or 10 characters before the "_" (the accession
         some examples:
-            TrEMBL: O61847_CAEEL, F0YED1_AURAN
+            TrEMBL: O61847_CAEEL, F0YED1_AURAN, A0A024RB10_HUMAN
             Swiss-Prot: CDK2_HUMAN, CDK2_MOUSE
     '''
     v = uniprotkb_id.split('_')
     if len(v) != 2:
         raise ValueError('Invalid UniprotKB ID')
-    return 'TrEMBL' if len(v[0])==6 else "Swiss-Prot"
+    #return 'TrEMBL' if len(v[0])==6 else "Swiss-Prot"
+    return 'Swiss-Prot' if len(v[0])==5 else "TrEMBL"
 
 def _dict_convert(uniprot_li):
     '''
