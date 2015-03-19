@@ -26,44 +26,56 @@ from utils.mongo import get_src_dump
 from config import DATA_ARCHIVE_ROOT
 
 timestamp = time.strftime('%Y%m%d')
-DATA_FOLDER=os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez', timestamp)
+DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez', timestamp)
 
 FILE_LIST = {
-    'gene': {'url': 'ftp://ftp.ncbi.nih.gov/gene/DATA/',
-             'files':  ['gene_info.gz',
-                        'gene2accession.gz',
-                        'gene2refseq.gz',
-                        'gene2unigene',
-                        'gene2go.gz',
-                        'gene_history.gz']},
+    'gene': {
+        'url': 'ftp://ftp.ncbi.nih.gov/gene/DATA/',
+        'files': [
+            'gene_info.gz',
+            'gene2accession.gz',
+            'gene2refseq.gz',
+            'gene2unigene',
+            'gene2go.gz',
+            'gene_history.gz'
+        ]
+    },
 
-    'refseq': {'url': 'ftp://ftp.ncbi.nih.gov/refseq/',
-               'files': ['H_sapiens/mRNA_Prot/human.*.rna.gbff.gz',
-                         'M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz',
-                         'R_norvegicus/mRNA_Prot/rat.*.rna.gbff.gz',
-                         'D_rerio/mRNA_Prot/zebrafish.*.rna.gbff.gz',
-                         'X_tropicalis/mRNA_Prot/frog.*.rna.gbff.gz',
-                         'B_taurus/mRNA_Prot/cow.*.rna.gbff.gz',
-                         ]},
+    'refseq': {
+        'url': 'ftp://ftp.ncbi.nih.gov/refseq/',
+        'files': [
+            'H_sapiens/mRNA_Prot/human.*.rna.gbff.gz',
+            'M_musculus/mRNA_Prot/mouse.*.rna.gbff.gz',
+            'R_norvegicus/mRNA_Prot/rat.*.rna.gbff.gz',
+            'D_rerio/mRNA_Prot/zebrafish.*.rna.gbff.gz',
+            'X_tropicalis/mRNA_Prot/frog.*.rna.gbff.gz',
+            'B_taurus/mRNA_Prot/cow.*.rna.gbff.gz'
+        ]
+    },
 
-    'Homologene': {'url': 'ftp://ftp.ncbi.nih.gov/pub/HomoloGene/current/',
-                   'files': ['homologene.data']},
+    'Homologene': {
+        'url': 'ftp://ftp.ncbi.nih.gov/pub/HomoloGene/current/',
+        'files': ['homologene.data']
+    },
 
-    'generif': {'url': 'ftp://ftp.ncbi.nih.gov/gene/GeneRIF/',
-                'files': ['generifs_basic.gz']},
-
+    'generif': {
+        'url': 'ftp://ftp.ncbi.nih.gov/gene/GeneRIF/',
+        'files': ['generifs_basic.gz']
+    },
 }
 
 
 def _get_ascp_cmdline(url):
     '''
-    ~/opt/aspera_connect/bin/ascp -QT -l640M -i  ~/opt/aspera_connect/etc/asperaweb_id_dsa.putty anonftp@ftp.ncbi.nih.gov:/refseq/H_sapiens/mRNA_Prot/human.rna.gbff.gz .
+    ~/opt/aspera_connect/bin/ascp -QT -l640M -i  \
+      ~/opt/aspera_connect/etc/asperaweb_id_dsa.putty anonftp@ftp.ncbi.nih.gov:/refseq/H_sapiens/mRNA_Prot/human.rna.gbff.gz .
     '''
     cmd = '~/opt/aspera_connect/bin/ascp -QT -l640M -i  ~/opt/aspera_connect/etc/asperaweb_id_dsa.putty anonftp@'
     _url = url[6:]   # remove 'ftp://'
     _url = _url.replace('.gov/', '.gov:/')
     cmd = cmd + _url + ' .'
     return cmd
+
 
 def _expand_wildchar_urls(url):
     '''
@@ -87,6 +99,7 @@ def _expand_wildchar_urls(url):
         url_list = [url]
     return url_list
 
+
 def _expand_refseq_files():
     '''expand refseq url list with wildchar.'''
     base = FILE_LIST['refseq']['url']
@@ -97,6 +110,7 @@ def _expand_refseq_files():
     _files = [fn[_i:] for fn in _files]    # remove leading "ftp://ftp.ncbi.nih.gov/refseq/"
     FILE_LIST['refseq']['files'] = _files
     return _files
+
 
 def download(path, no_confirm=False):
     out = []
@@ -148,12 +162,12 @@ def parse_gbff(path):
 
 
 def main():
-    no_confirm = True   #set it to True for running this script automatically without intervention.
+    no_confirm = True   # set it to True for running this script automatically without intervention.
 
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
     else:
-        if not (no_confirm or len(os.listdir(DATA_FOLDER))==0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER)=='Y'):
+        if not (no_confirm or len(os.listdir(DATA_FOLDER)) == 0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER) == 'Y'):
             sys.exit()
 
     log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'entrez_dump.log'), prompt=(not no_confirm), default='O')
@@ -165,7 +179,7 @@ def main():
     doc = {'_id': 'entrez',
            'timestamp': timestamp,
            'data_folder': DATA_FOLDER,
-           'logfile':logfile,
+           'logfile': logfile,
            'status': 'downloading'}
     src_dump.save(doc)
     t0 = time.time()
@@ -183,14 +197,17 @@ def main():
 
     #mark the download finished successfully
     _updates = {
-                'status': 'success',
-                'time': {'download': t_download,
-                         'parsing': t_parsing,
-                         'total': t_total},
-                'pending_to_upload': True    # a flag to trigger data uploading
-                }
+        'status': 'success',
+        'time': {
+            'download': t_download,
+            'parsing': t_parsing,
+            'total': t_total
+        },
+        'pending_to_upload': True    # a flag to trigger data uploading
+    }
 
     src_dump.update({'_id': 'entrez'}, {'$set': _updates})
+
 
 if __name__ == '__main__':
     main()
