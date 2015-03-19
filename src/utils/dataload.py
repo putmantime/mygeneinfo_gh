@@ -11,48 +11,50 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from __future__ import print_function
 import os
 import os.path
-import types
 import itertools
 import csv
-csv.field_size_limit(10000000)  #default is 131072, too small for some big files
+csv.field_size_limit(10000000)   # default is 131072, too small for some big files
 import json
 
 from utils.common import ask, safewfile
 
+
 #===============================================================================
 # Misc. Utility functions
 #===============================================================================
-
 def load_start(datafile):
-    print 'Loading "%s"...' % os.path.split(datafile)[1] ,
+    print('Loading "%s"...' % os.path.split(datafile)[1], end='')
+
 
 def load_done(msg=''):
-    print "Done."+msg
+    print("Done." + msg)
 
 
 #===============================================================================
 # List Utility functions
 #===============================================================================
-def llist(list,sep='\t'):
+def llist(list, sep='\t'):
     '''Nicely output the list with each item a line.'''
     for x in list:
-        if type(x) == type(()) or type(x) == type([]):
-            xx=sep.join([str(i) for i in x])
+        if isinstance(x, (list, tuple)):
+            xx = sep.join([str(i) for i in x])
         else:
-            xx=str(x)
-        print xx
+            xx = str(x)
+        print(xx)
 
-def listitems(list,*idx):
+
+def listitems(a_list, *idx):
     '''Return multiple items from list by given indexes.'''
-    if type(list) is type(()):
-        return tuple([list[i] for i in idx])
+    if isinstance(a_list, tuple):
+        return tuple([a_list[i] for i in idx])
     else:
-        return [list[i] for i in idx]
+        return [a_list[i] for i in idx]
 
-def list2dict(list,keyitem,alwayslist=False):
+
+def list2dict(a_list, keyitem, alwayslist=False):
     '''Return a dictionary with specified keyitem as key, others as values.
        keyitem can be an index or a sequence of indexes.
        For example: li=[['A','a',1],
@@ -64,61 +66,66 @@ def list2dict(list,keyitem,alwayslist=False):
                     list2dict(li,0,True)---> {'A':[('a',1),('b',3)],
                                               'B':[('a',2),]}
     '''
-    dict={}
-    for x in list:
-        if type(keyitem)==type(0):      #single item as key
-            key=x[keyitem]
-            value=tuple(x[:keyitem]+x[keyitem+1:])
-        else:                           #
-            key=tuple([x[i] for i in keyitem])
-            value=tuple([x[i] for i in range(len(list)) if i not in keyitem])
-        if len(value) == 1:      #single value
-            value=value[0]
-        if not dict.has_key(key):
-            if alwayslist:
-                dict[key] = [value,]
-            else:
-                dict[key]=value
+    _dict = {}
+    for x in a_list:
+        if isinstance(keyitem, int):      # single item as key
+            key = x[keyitem]
+            value = tuple(x[:keyitem] + x[keyitem + 1:])
         else:
-            current_value=dict[key]
-            if type(current_value) != type([]):
-                current_value=[current_value,]
+            key = tuple([x[i] for i in keyitem])
+            value = tuple([x[i] for i in range(len(a_list)) if i not in keyitem])
+        if len(value) == 1:      # single value
+            value = value[0]
+        if key not in _dict:
+            if alwayslist:
+                _dict[key] = [value, ]
+            else:
+                _dict[key] = value
+        else:
+            current_value = _dict[key]
+            if not isinstance(current_value, list):
+                current_value = [current_value, ]
             current_value.append(value)
-            dict[key]=current_value
-    return dict
+            _dict[key] = current_value
+    return _dict
 
-def list_nondup(list):
-    x={}
-    for item in list:
-        x[item]=None
+
+def list_nondup(a_list):
+    x = {}
+    for item in a_list:
+        x[item] = None
     return x.keys()
 
-def listsort(list, by, reverse=False,cmp=None, key=None):
+
+def listsort(a_list, by, reverse=False, cmp=None, key=None):
     '''Given list is a list of sub(list/tuple.)
        Return a new list sorted by the ith(given from "by" item)
        item of each sublist.'''
-    new_li = [(x[by],x) for x in list]
+    new_li = [(x[by], x) for x in a_list]
     new_li.sort(cmp=cmp, key=key, reverse=reverse)
     return [x[1] for x in new_li]
 
-def list_itemcnt(list):
+
+def list_itemcnt(a_list):
     '''Return number of occurrence for each type of item in the list.'''
-    x={}
-    for item in list:
-        if x.has_key(item):
-            x[item]+=1
+    x = {}
+    for item in a_list:
+        if item in x:
+            x[item] += 1
         else:
-            x[item]=1
-    return [(i,x[i]) for i in x]
+            x[item] = 1
+    return [(i, x[i]) for i in x]
+
 
 def alwayslist(value):
     """If input value if not a list/tuple type, return it as a single value list."""
     if value is None:
         return []
-    if type(value) in (types.ListType, types.TupleType):
+    if isinstance(value, (list, tuple)):
         return value
     else:
         return [value]
+
 
 #===============================================================================
 # File Utility functions
@@ -131,7 +138,7 @@ def anyfile(infile, mode='r'):
       e.g., ('a.zip', 'aa.txt')
 
     '''
-    if type(infile) is types.TupleType:
+    if isinstance(infile, tuple):
         infile, rawfile = infile[:2]
     else:
         rawfile = os.path.splitext(infile)[0]
@@ -146,19 +153,21 @@ def anyfile(infile, mode='r'):
         in_f = file(infile, mode)
     return in_f
 
+
 def tabfile_tester(datafile, header=1, sep='\t'):
-    reader = csv.reader(anyfile(datafile),delimiter=sep)
+    reader = csv.reader(anyfile(datafile), delimiter=sep)
     lineno = 0
     try:
         for i in range(header):
             reader.next()
-            lineno+=1
+            lineno += 1
 
         for ld in reader:
-            lineno+=1
+            lineno += 1
     except:
-        print "Error at line number:", lineno
+        print("Error at line number:", lineno)
         raise
+
 
 def dupline_seperator(dupline, dup_sep, dup_idx=None, strip=False):
     '''
@@ -191,7 +200,8 @@ def dupline_seperator(dupline, dup_sep, dup_idx=None, strip=False):
             if strip:
                 value = [x.strip() for x in value]
         value_li[idx] = value
-    return itertools.product(*value_li)    #itertools.product fits exactly the purpose here
+    return itertools.product(*value_li)    # itertools.product fits exactly the purpose here
+
 
 def tabfile_feeder(datafile, header=1, sep='\t',
                    includefn=None,
@@ -199,7 +209,7 @@ def tabfile_feeder(datafile, header=1, sep='\t',
                    assert_column_no=None):
     '''a generator for each row in the file.'''
 
-    reader = csv.reader(anyfile(datafile),delimiter=sep)
+    reader = csv.reader(anyfile(datafile), delimiter=sep)
     lineno = 0
     try:
         for i in range(header):
@@ -219,41 +229,44 @@ def tabfile_feeder(datafile, header=1, sep='\t',
                 else:
                     yield ld
     except ValueError:
-        print "Error at line number:", lineno
+        print("Error at line number:", lineno)
         raise
+
 
 def tab2list(datafile, cols, **kwargs):
     if os.path.exists(datafile):
-        if type(cols) is type(1):
+        if isinstance(cols, int):
             return [ld[cols] for ld in tabfile_feeder(datafile, **kwargs)]
         else:
             return [listitems(ld, *cols) for ld in tabfile_feeder(datafile, **kwargs)]
     else:
-        print 'Error: missing "%s". Skipped!' % os.path.split(datafile)[1]
+        print('Error: missing "%s". Skipped!' % os.path.split(datafile)[1])
         return {}
 
+
 def tab2dict(datafile, cols, key, alwayslist=False, **kwargs):
-    if type(datafile) is types.TupleType:
+    if isinstance(datafile, tuple):
         _datafile = datafile[0]
     else:
         _datafile = datafile
     if os.path.exists(_datafile):
         return list2dict([listitems(ld, *cols) for ld in tabfile_feeder(datafile, **kwargs)], key, alwayslist=alwayslist)
     else:
-        print 'Error: missing "%s". Skipped!' % os.path.split(_datafile)[1]
+        print('Error: missing "%s". Skipped!' % os.path.split(_datafile)[1])
         return {}
 
-def file_merge(infiles, outfile=None, header=1,verbose=1):
+
+def file_merge(infiles, outfile=None, header=1, verbose=1):
     '''merge a list of input files with the same format.
        if header will be removed from the 2nd files in the list.
     '''
     outfile = outfile or '_merged'.join(os.path.splitext(infiles[0]))
     out_f, outfile = safewfile(outfile)
     if verbose:
-        print "Merging..."
+        print("Merging...")
     cnt = 0
     for i, fn in enumerate(infiles):
-        print os.path.split(fn)[1],'...',
+        print(os.path.split(fn)[1], '...', end='')
         line_no = 0
         in_f = anyfile(fn)
         if i > 0:
@@ -264,10 +277,10 @@ def file_merge(infiles, outfile=None, header=1,verbose=1):
             line_no += 1
         in_f.close()
         cnt += line_no
-        print line_no
+        print(line_no)
     out_f.close()
-    print "="*20
-    print "Done![total %d lines output]" % cnt
+    print("=" * 20)
+    print("Done![total %d lines output]" % cnt)
 
 
 #===============================================================================
@@ -280,11 +293,12 @@ def value_convert(_dict, fn, traverse_list=True):
        apply fn to each item of the list.
     '''
     for k in _dict:
-        if traverse_list and type(_dict[k]) is types.ListType:
+        if traverse_list and isinstance(_dict[k], list):
             _dict[k] = [fn(x) for x in _dict[k]]
         else:
             _dict[k] = fn(_dict[k])
     return _dict
+
 
 def dict_convert(_dict, keyfn=None, valuefn=None):
     '''Return a new dict with each key converted by keyfn (if not None),
@@ -303,11 +317,13 @@ def dict_convert(_dict, keyfn=None, valuefn=None):
     else:
         return _dict
 
+
 def updated_dict(_dict, attrs):
     '''Same as dict.update, but return the updated dictionary.'''
     out = _dict.copy()
     out.update(attrs)
     return out
+
 
 def merge_dict(dict_li, attr_li, missingvalue=None):
     '''
@@ -342,6 +358,7 @@ def merge_dict(dict_li, attr_li, missingvalue=None):
         out_dict[k] = value
     return out_dict
 
+
 def normalized_value(value, sort=True):
     '''Return a "normalized" value:
            1. if a list, remove duplicate and sort it
@@ -349,8 +366,8 @@ def normalized_value(value, sort=True):
            3. if a list, remove empty values
            4. otherwise, return value as it is.
     '''
-    if type(value) is types.ListType:
-        value = [x for x in value if x]   #remove empty values
+    if isinstance(value, list):
+        value = [x for x in value if x]   # remove empty values
         try:
             _v = set(value)
         except TypeError:
@@ -367,10 +384,12 @@ def normalized_value(value, sort=True):
 
     return _v
 
+
 def dict_nodup(_dict, sort=True):
     for k in _dict:
         _dict[k] = normalized_value(_dict[k], sort=sort)
     return _dict
+
 
 def dict_attrmerge(dict_li, removedup=True, sort=True, special_fns={}):
     '''
@@ -392,7 +411,7 @@ def dict_attrmerge(dict_li, removedup=True, sort=True, special_fns={}):
         _value = []
         for d in dict_li:
             if d.get(k, None):
-                if type(d[k]) is types.ListType:
+                if isinstance(d[k], list):
                     _value.extend(d[k])
                 else:
                     _value.append(d[k])
@@ -408,15 +427,16 @@ def dict_attrmerge(dict_li, removedup=True, sort=True, special_fns={}):
         out_dict = dict_nodup(out_dict, sort=sort)
     return out_dict
 
+
 def dict_apply(dict, key, value, sort=True):
     '''
 
     '''
     if key in dict:
         _value = dict[key]
-        if type(_value) is not types.ListType:
+        if not isinstance(_value, list):
             _value = [_value]
-        if type(value) is types.ListType:
+        if isinstance(value, list):
             _value.extend(value)
         else:
             _value.append(value)
@@ -424,6 +444,7 @@ def dict_apply(dict, key, value, sort=True):
         _value = value
 
     dict[key] = normalized_value(_value, sort=sort)
+
 
 def dict_to_list(gene_d):
     '''return a list of genedoc from genedoc dictionary and
@@ -446,9 +467,9 @@ def download(url, output_folder, output_file, no_confirm=False, use_axel=False):
             if no_confirm or ask('Remove existing file "%s"?' % output_file) == 'Y':
                 os.remove(output_file)
             else:
-                print "Skipped!"
+                print("Skipped!")
                 return
-        print 'Downloading "%s"...' % output_file
+        print('Downloading "%s"...' % output_file)
         if use_axel:
             #faster than wget using 5 connections
             cmdline = 'axel -a -n 5 "{}" -o "{}"'.format(url, output_file)
@@ -456,9 +477,9 @@ def download(url, output_folder, output_file, no_confirm=False, use_axel=False):
             cmdline = 'wget "{}" -O "{}"'.format(url, output_file)
         return_code = os.system(cmdline)
         if return_code == 0:
-            print "Success."
+            print("Success.")
         else:
-            print "Failed with return code (%s)." % return_code
-        print "="*50
+            print("Failed with return code (%s)." % return_code)
+        print("="*50)
     finally:
         os.chdir(orig_path)
