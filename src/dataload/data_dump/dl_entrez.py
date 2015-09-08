@@ -49,7 +49,8 @@ FILE_LIST = {
             'R_norvegicus/mRNA_Prot/rat.*.rna.gbff.gz',
             'D_rerio/mRNA_Prot/zebrafish.*.rna.gbff.gz',
             'X_tropicalis/mRNA_Prot/frog.*.rna.gbff.gz',
-            'B_taurus/mRNA_Prot/cow.*.rna.gbff.gz'
+            'B_taurus/mRNA_Prot/cow.*.rna.gbff.gz',
+            'S_scrofa/mRNA_Prot/pig.*.rna.gbff.gz'
         ]
     },
 
@@ -157,8 +158,39 @@ def parse_gbff(path):
     from parse_refseq_gbff import main
     refseq_folder = os.path.join(path, 'refseq')
     gbff_files = glob.glob(os.path.join(refseq_folder, '*.rna.gbff.gz'))
-    assert len(gbff_files) == 14, 'Missing "*.gbff.gz" files? Found %d:\n%s' % (len(gbff_files), '\n'.join(gbff_files))
+    assert len(gbff_files) >= 30, 'Missing "*.gbff.gz" files? Found %d:\n%s' % (len(gbff_files), '\n'.join(gbff_files))
     main(refseq_folder)
+
+
+def redo_parse_gbff(path):
+    '''call this function manually to re-start the parsing step and set src_dump.
+       This is used when main() is broken at parsing step, then parsing need to be re-started
+       after the fix.
+    '''
+    #mark the download starts
+    src_dump = get_src_dump()
+
+    t0 = time.time()
+    t_download = timesofar(t0)
+    t1 = time.time()
+    #mark parsing starts
+    src_dump.update({'_id': 'entrez'}, {'$set': {'status': 'parsing'}})
+    parse_gbff(path)
+    t_parsing = timesofar(t1)
+    t_total = timesofar(t0)
+
+    #mark the download finished successfully
+    _updates = {
+        'status': 'success',
+        'time': {
+            'download': t_download,
+            'parsing': t_parsing,
+            'total': t_total
+        },
+        'pending_to_upload': True    # a flag to trigger data uploading
+    }
+
+    src_dump.update({'_id': 'entrez'}, {'$set': _updates})
 
 
 def main():
