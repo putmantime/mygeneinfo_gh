@@ -144,15 +144,21 @@ class GeneDocDispatcher:
         pass
 
     def main(self):
-        # _flag = True
+        import sys
+        if len(sys.argv) == 2:
+            _flag = True
         while 1:
             self.idle = True
             self.check_src_dump()
             self.check_src_upload()
-            # if _flag:
-            #     #genedoc_merged.send(self)
-            #     source_upload_success.send(self, src_name='entrez')
-            #     _flag = False
+            if _flag:
+                if sys.argv[1] == 'flag1':
+                    # resend source_upload_success signal
+                    source_upload_success.send(self, src_name='entrez')
+                elif sys.argv[1] == 'flag2':
+                    # resend genedoc_merged signal
+                    genedoc_merged.send(self)
+                _flag = False
             self.check_src_build()
             self.check_src_index()
 
