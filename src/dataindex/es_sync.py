@@ -246,24 +246,25 @@ def main():
     #_es_host = 'localhost:9200'
     #_es_index = config + TARGET_ES_INDEX_SUFFIX    # '_current_1'
 
-    with open_tunnel():
-        esi = ESIndexer2(_es_index, es_host=_es_host)
-        meta = esi.get_mapping_meta(changes)
-        print('\033[34;06m{}\033[0m:'.format('[Metadata]'))
-        pprint(meta)
-        code = esi.apply_changes(changes, noconfirm=noconfirm)
-        if code != -1:
-            # aborted when code == -1
-            _meta = {'_meta': meta}
-            # somehow when only update "_meta", "_timestamp" get empty
-            # so add "_timestamp" explicitly here. This is an ES bug.
-            _meta['_timestamp'] = {
-                "enabled": True,
-                "path": "_timestamp"
-            }
-            #esi.update_mapping_meta(_meta)
-            print(esi.conn.indices.put_mapping(esi.ES_INDEX_TYPE, _meta, [esi.ES_INDEX_NAME]))
-            esi.post_verify_changes(changes)
+    with open_tunnel() as tunnel:
+        if tunnel.ok:
+            esi = ESIndexer2(_es_index, es_host=_es_host)
+            meta = esi.get_mapping_meta(changes)
+            print('\033[34;06m{}\033[0m:'.format('[Metadata]'))
+            pprint(meta)
+            code = esi.apply_changes(changes, noconfirm=noconfirm)
+            if code != -1:
+                # aborted when code == -1
+                _meta = {'_meta': meta}
+                # somehow when only update "_meta", "_timestamp" get empty
+                # so add "_timestamp" explicitly here. This is an ES bug.
+                _meta['_timestamp'] = {
+                    "enabled": True,
+                    "path": "_timestamp"
+                }
+                #esi.update_mapping_meta(_meta)
+                print(esi.conn.indices.put_mapping(esi.ES_INDEX_TYPE, _meta, [esi.ES_INDEX_NAME]))
+                esi.post_verify_changes(changes)
 
 
 if __name__ == '__main__':
