@@ -1,3 +1,4 @@
+from __future__ import print_function
 import time
 from subprocess import Popen
 from datetime import datetime
@@ -28,7 +29,7 @@ class GeneDocDispatcher:
     def check_src_dump(self):
         src_to_update_li = check_mongo()
         if src_to_update_li:
-            print '\nDispatcher:  found pending jobs ', src_to_update_li
+            print('\nDispatcher:  found pending jobs ', src_to_update_li)
             for src_to_update in src_to_update_li:
                 source_update_available.send(sender=self, src_to_update=src_to_update)
 
@@ -45,8 +46,8 @@ class GeneDocDispatcher:
         jobs_finished = []
         if running_processes:
             self.idle = True
-            print 'Dispatcher:  {} active job(s)'.format(len(running_processes))
-            print get_process_info(running_processes)
+            print('Dispatcher:  {} active job(s)'.format(len(running_processes)))
+            print(get_process_info(running_processes))
 
         for src in running_processes:
             p = running_processes[src]
@@ -69,7 +70,7 @@ class GeneDocDispatcher:
 
                 if returncode == 0:
                     msg = 'Dispatcher:  "{}" uploader finished successfully with code {} (time: {})'.format(src, returncode, timesofar(p.t0, t1=t1))
-                    print msg
+                    print(msg)
                     if hipchat_msg:
                         msg += '<a href="http://su07:8000/log/dump/{}">dump log</a>'.format(src)
                         msg += '<a href="http://su07:8000/log/upload/{}">upload log</a>'.format(src)
@@ -77,7 +78,7 @@ class GeneDocDispatcher:
                     source_upload_success.send(self, src_name=src)
                 else:
                     msg = 'Dispatcher:  "{}" uploader failed with code {} (time: {}s)'.format(src, returncode, t1)
-                    print msg
+                    print(msg)
                     if hipchat_msg:
                         hipchat_msg(msg)
                     source_upload_failed.send(self, src_name=src)
@@ -111,7 +112,7 @@ class GeneDocDispatcher:
                 msg = 'Dispatcher:  "{}" builder finished successfully with code {} (time: {})'.format(config, returncode, t)
             else:
                 msg = 'Dispatcher:  "{}" builder failed successfully with code {} (time: {})'.format(config, returncode, t)
-            print msg
+            print(msg)
             if hipchat_msg:
                 msg += '<a href="http://su07:8000/log/build/{}">build log</a>'.format(config)
                 hipchat_msg(msg, message_format='html')
@@ -130,7 +131,7 @@ class GeneDocDispatcher:
                 msg = 'Dispatcher:  "{}" syncer finished successfully with code {} (time: {})'.format(config, returncode, t)
             else:
                 msg = 'Dispatcher:  "{}" syncer failed successfully with code {} (time: {})'.format(config, returncode, t)
-            print msg
+            print(msg)
             if hipchat_msg:
                 msg += '<a href="http://su07:8000/log/sync/{}">sync log</a>'.format(config)
                 hipchat_msg(msg, message_format='html')
@@ -145,8 +146,7 @@ class GeneDocDispatcher:
 
     def main(self):
         import sys
-        if len(sys.argv) == 2:
-            _flag = True
+        _flag = len(sys.argv) == 2
         while 1:
             self.idle = True
             self.check_src_dump()
@@ -163,9 +163,9 @@ class GeneDocDispatcher:
             self.check_src_index()
 
             if self.idle:
-                print '\b' * 50,
+                print('\b' * 50, end='')
                 for i in range(100):
-                    print '\b' * 2 + [unichr(8212), '\\', '|', '/'][i % 4],
+                    print('\b' * 2 + [unichr(8212), '\\', '|', '/'][i % 4], end='')
                     time.sleep(0.1)
             else:
                 time.sleep(10)
