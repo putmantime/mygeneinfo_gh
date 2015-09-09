@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 import os.path
 import time
@@ -6,9 +7,17 @@ import base64
 import random
 import string
 import os
-import types
 import json
 from itertools import islice
+
+
+if sys.version_info.major == 3:
+    str_types = str
+    import pickle       # noqa
+else:
+    str_types = (str, unicode)    # noqa
+    import cPickle as pickle
+    input = raw_input
 
 
 src_path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
@@ -21,7 +30,7 @@ def ask(prompt, options='YN'):
     '''Prompt Yes or No,return the upper case 'Y' or 'N'.'''
     options = options.upper()
     while 1:
-        s = raw_input(prompt+'[%s]' % '|'.join(list(options))).strip().upper()
+        s = input(prompt+'[%s]' % '|'.join(list(options))).strip().upper()
         if s in options:
             break
     return s
@@ -109,21 +118,21 @@ def safewfile(filename, prompt=True, default='C', mode='w'):
     while 1:
         if not os.path.exists(filename):
             break
-        print 'Warning:"%s" exists.' % filename,
+        print('Warning:"%s" exists.' % filename, end='')
         if prompt:
             option = ask('Overwrite,Append or Change name?', 'OAC')
         else:
             option = default
         if option == 'O':
             if not prompt or ask('You sure?') == 'Y':
-                print "Overwritten."
+                print("Overwritten.")
                 break
         elif option == 'A':
-            print "Append to original file."
+            print("Append to original file.")
             f = file(filename, 'a')
             f.write('\n' + "=" * 20 + 'Appending on ' + time.ctime() + "=" * 20 + '\n')
             return f, filename
-        print 'Use "%s" instead.' % addsuffix(filename, '_' + str(suffix))
+        print('Use "%s" instead.' % addsuffix(filename, '_' + str(suffix)))
         filename = addsuffix(filename, '_' + str(suffix))
         suffix += 1
     return file(filename, mode), filename
@@ -151,8 +160,6 @@ def SubStr(input_string, start_string='', end_string='', include=0):
             return ''
         else:
             end_pos += start_pos  # get actual end_pos
-#    print start_pos
-#    print end_pos
     if include == 1:
         return input_string[start_pos - len(start_string): end_pos + len(end_string)]
     else:
@@ -163,10 +170,10 @@ def safe_unicode(s, mask='#'):
     '''replace non-decodable char into "#".'''
     try:
         _s = unicode(s)
-    except UnicodeDecodeError, e:
+    except UnicodeDecodeError as e:
         pos = e.args[2]
         _s = s.replace(s[pos], mask)
-        print 'Warning: invalid character "%s" is masked as "%s".' % (s[pos], mask)
+        print('Warning: invalid character "%s" is masked as "%s".' % (s[pos], mask))
         return safe_unicode(_s, mask)
 
     return _s
@@ -181,20 +188,18 @@ def dump(object, filename, bin=1):
     '''Saves a compressed object to disk
     '''
     import gzip
-    import cPickle as pickle
-    print 'Dumping into "%s"...' % filename,
+    print('Dumping into "%s"...' % filename, end='')
     file = gzip.GzipFile(filename, 'wb')
     pickle.dump(object, file, protocol=bin)
     file.close()
-    print 'Done. [%s]' % os.stat(filename).st_size
+    print('Done. [%s]' % os.stat(filename).st_size)
 
 
 def dump2gridfs(object, filename, db, bin=1):
     '''Save a compressed object to MongoDB gridfs.'''
     import gzip
     import gridfs
-    import cPickle as pickle
-    print 'Dumping into "MongoDB:%s/%s"...' % (db.name, filename),
+    print('Dumping into "MongoDB:%s/%s"...' % (db.name, filename), end='')
     fs = gridfs.GridFS(db)
     if fs.exists(_id=filename):
         fs.delete(filename)
@@ -205,7 +210,7 @@ def dump2gridfs(object, filename, db, bin=1):
     finally:
         gzfobj.close()
         fobj.close()
-    print 'Done. [%s]' % fs.get(filename).length
+    print('Done. [%s]' % fs.get(filename).length)
 
 
 def loadobj(filename, mode='file'):
@@ -216,7 +221,6 @@ def loadobj(filename, mode='file'):
            obj = loadobj(('data.pyobj', mongo_db), mode='gridfs')
     '''
     import gzip
-    import cPickle as pickle
 
     if mode == 'gridfs':
         import gridfs
@@ -224,7 +228,7 @@ def loadobj(filename, mode='file'):
         fs = gridfs.GridFS(db)
         fobj = fs.get(filename)
     else:
-        if type(filename) in types.StringTypes:
+        if isinstance(filename, str_types):
             fobj = file(filename, 'rb')
         else:
             fobj = filename   # input is a file-like handler
