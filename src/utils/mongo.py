@@ -1,3 +1,4 @@
+from __future__ import print_function
 import time
 from mongokit import Connection
 from config import (DATA_SRC_SERVER, DATA_SRC_PORT, DATA_SRC_DATABASE,
@@ -60,9 +61,9 @@ def doc_feeder0(collection, step=1000, s=None, e=None, inbatch=False):
     n = collection.count()
     s = s or 1
     e = e or n
-    print 'Found %d documents in database "%s".' % (n, collection.name)
+    print('Found %d documents in database "%s".' % (n, collection.name))
     for i in range(s - 1, e + 1, step):
-        print "Processing %d-%d documents..." % (i + 1, i + step),
+        print("Processing %d-%d documents..." % (i + 1, i + step), end='')
         t0 = time.time()
         res = collection.find(skip=i, limit=step, timeout=False)
         if inbatch:
@@ -70,7 +71,7 @@ def doc_feeder0(collection, step=1000, s=None, e=None, inbatch=False):
         else:
             for doc in res:
                 yield doc
-        print 'Done.[%s]' % timesofar(t0)
+        print('Done.[%s]' % timesofar(t0))
 
 
 def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None, batch_callback=None, fields=None):
@@ -84,7 +85,7 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None,
     n = cur.count()
     s = s or 0
     e = e or n
-    print 'Retrieving %d documents from database "%s".' % (n, collection.name)
+    print('Retrieving %d documents from database "%s".' % (n, collection.name))
     t0 = time.time()
     if inbatch:
         doc_li = []
@@ -94,11 +95,11 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None,
         if s:
             cur.skip(s)
             cnt = s
-            print "Skipping %d documents." % s
+            print("Skipping %d documents." % s)
         if e:
             cur.limit(e - (s or 0))
         cur.batch_size(step)
-        print "Processing %d-%d documents..." % (cnt + 1, min(cnt + step, e)),
+        print("Processing %d-%d documents..." % (cnt + 1, min(cnt + step, e)), end='')
         for doc in cur:
             if inbatch:
                 doc_li.append(doc)
@@ -109,20 +110,20 @@ def doc_feeder(collection, step=1000, s=None, e=None, inbatch=False, query=None,
                 if inbatch:
                     yield doc_li
                     doc_li = []
-                print 'Done.[%.1f%%,%s]' % (cnt * 100. / n, timesofar(t1))
+                print('Done.[%.1f%%,%s]' % (cnt * 100. / n, timesofar(t1)))
                 if batch_callback:
                     batch_callback(cnt, time.time()-t1)
                 if cnt < e:
                     t1 = time.time()
-                    print "Processing %d-%d documents..." % (cnt + 1, min(cnt + step, e)),
+                    print("Processing %d-%d documents..." % (cnt + 1, min(cnt + step, e)), end='')
         if inbatch and doc_li:
             #Important: need to yield the last batch here
             yield doc_li
 
         #print 'Done.[%s]' % timesofar(t1)
-        print 'Done.[%.1f%%,%s]' % (cnt * 100. / n, timesofar(t1))
-        print "=" * 20
-        print 'Finished.[total time: %s]' % timesofar(t0)
+        print('Done.[%.1f%%,%s]' % (cnt * 100. / n, timesofar(t1)))
+        print("=" * 20)
+        print('Finished.[total time: %s]' % timesofar(t0))
     finally:
         cur.close()
 
@@ -141,29 +142,29 @@ def src_clean_archives(keep_last=1, src=None, verbose=True, noconfirm=False):
     archive_d = list2dict(archive_li, 0, alwayslist=1)
     coll_to_remove = []
     for k, v in archive_d.items():
-        print k,
+        print(k, end='')
         #check current collection exists
         if src[k].count() > 0:
             cnt = 0
             for coll in sorted(v)[:-keep_last]:
                 coll_to_remove.append(coll)
                 cnt += 1
-            print "\t\t%s archived collections marked to remove." % cnt
+            print("\t\t%s archived collections marked to remove." % cnt)
         else:
-            print 'skipped. Missing current "%s" collection!' % k
+            print('skipped. Missing current "%s" collection!' % k)
     if len(coll_to_remove) > 0:
-        print "%d archived collections will be removed." % len(coll_to_remove)
+        print("%d archived collections will be removed." % len(coll_to_remove))
         if verbose:
             for coll in coll_to_remove:
-                print '\t', coll
+                print('\t', coll)
         if noconfirm or ask("Continue?") == 'Y':
             for coll in coll_to_remove:
                 src[coll].drop()
-            print "Done.[%s collections removed]" % len(coll_to_remove)
+            print("Done.[%s collections removed]" % len(coll_to_remove))
         else:
-            print "Aborted."
+            print("Aborted.")
     else:
-        print "Nothing needs to be removed."
+        print("Nothing needs to be removed.")
 
 
 def target_clean_collections(keep_last=2, target=None, verbose=True, noconfirm=False):
@@ -184,18 +185,18 @@ def target_clean_collections(keep_last=2, target=None, verbose=True, noconfirm=F
         _li.sort()   # older collection appears first
         coll_to_remove = [x[1] for x in _li[:-keep_last]]   # keep last # of newer collections
         if len(coll_to_remove) > 0:
-            print "{} \"{}*\" collection(s) will be removed.".format(len(coll_to_remove), prefix)
+            print('{} "{}*" collection(s) will be removed.'.format(len(coll_to_remove), prefix))
             if verbose:
                 for coll in coll_to_remove:
-                    print '\t', coll
+                    print('\t', coll)
             if noconfirm or ask("Continue?") == 'Y':
                 for coll in coll_to_remove:
                     target[coll].drop()
-                print "Done.[%s collection(s) removed]" % len(coll_to_remove)
+                print("Done.[%s collection(s) removed]" % len(coll_to_remove))
             else:
-                print "Aborted."
+                print("Aborted.")
         else:
-            print "Nothing needs to be removed."
+            print("Nothing needs to be removed.")
 
 
 def backup_src_configs():
@@ -211,7 +212,7 @@ def backup_src_configs():
         json.dump(xli, bak_f, cls=DateTimeJSONEncoder, indent=2)
         bak_f.close()
         bakfile_key = 'genedoc_src_config_bk/' + os.path.split(bakfile)[1]
-        print 'Saving to S3: "{}"... '.format(bakfile_key),
+        print('Saving to S3: "{}"... '.format(bakfile_key), end='')
         send_s3_file(bakfile, bakfile_key, overwrite=True)
         os.remove(bakfile)
-        print 'Done.'
+        print('Done.')
