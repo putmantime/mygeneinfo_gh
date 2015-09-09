@@ -1,6 +1,7 @@
 '''
 Utils to compare two list of gene documents
 '''
+from __future__ import print_function
 import time
 import os.path
 from utils.common import timesofar
@@ -34,15 +35,15 @@ def two_docs_iterator(b1, b2, id_list, step=10000):
     n = len(id_list)
     for i in range(0, n, step):
         t1 = time.time()
-        print "Processing %d-%d documents..." % (i + 1, min(i + step, n)),
+        print("Processing %d-%d documents..." % (i + 1, min(i + step, n)), end='')
         _ids = id_list[i:i+step]
         iter1 = b1.mget_from_ids(_ids, asiter=True)
         iter2 = b2.mget_from_ids(_ids, asiter=True)
         for doc1, doc2 in zip(iter1, iter2):
             yield doc1, doc2
-        print 'Done.[%.1f%%,%s]' % (i*100./n, timesofar(t1))
-    print "="*20
-    print 'Finished.[total time: %s]' % timesofar(t0)
+        print('Done.[%.1f%%,%s]' % (i*100./n, timesofar(t1)))
+    print("="*20)
+    print('Finished.[total time: %s]' % timesofar(t0))
 
 
 def _diff_doc_worker(args):
@@ -89,17 +90,17 @@ def diff_collections(b1, b2, use_parallel=True, step=10000):
 
     id_s1 = set(b1.get_id_list())
     id_s2 = set(b2.get_id_list())
-    print "Size of collection 1:\t", len(id_s1)
-    print "Size of collection 2:\t", len(id_s2)
+    print("Size of collection 1:\t", len(id_s1))
+    print("Size of collection 2:\t", len(id_s2))
 
     id_in_1 = id_s1 - id_s2
     id_in_2 = id_s2 - id_s1
     id_common = id_s1 & id_s2
-    print "# of docs found only in collection 1:\t", len(id_in_1)
-    print "# of docs found only in collection 2:\t", len(id_in_2)
-    print "# of docs found in both collections:\t", len(id_common)
+    print("# of docs found only in collection 1:\t", len(id_in_1))
+    print("# of docs found only in collection 2:\t", len(id_in_2))
+    print("# of docs found in both collections:\t", len(id_common))
 
-    print "Comparing matching docs..."
+    print("Comparing matching docs...")
     _updates = []
     if len(id_common) > 0:
         if not use_parallel:
@@ -120,10 +121,10 @@ def diff_collections(b1, b2, use_parallel=True, step=10000):
                 for res in job_results:
                     _updates.extend(res)
             else:
-                print "Parallel jobs failed or were interrupted."
+                print("Parallel jobs failed or were interrupted.")
                 return None
 
-        print "Done. [{} docs changed]".format(len(_updates))
+        print("Done. [{} docs changed]".format(len(_updates)))
 
     _deletes = []
     if len(id_in_1) > 0:
