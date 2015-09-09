@@ -159,7 +159,7 @@ def tabfile_tester(datafile, header=1, sep='\t'):
     lineno = 0
     try:
         for i in range(header):
-            reader.next()
+            next(reader)
             lineno += 1
 
         for ld in reader:
@@ -213,7 +213,7 @@ def tabfile_feeder(datafile, header=1, sep='\t',
     lineno = 0
     try:
         for i in range(header):
-            reader.next()
+            next(reader)
             lineno += 1
 
         for ld in reader:
