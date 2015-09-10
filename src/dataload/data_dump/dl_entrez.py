@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from __future__ import print_function
 import sys
 import os
 import os.path
@@ -133,20 +133,20 @@ def download(path, no_confirm=False):
                     if no_confirm or ask('Remove existing file "%s"?' % filename) == 'Y':
                         os.remove(filename)
                     else:
-                        print "Skipped!"
+                        print("Skipped!")
                         continue
-                print 'Downloading "%s"...' % f
+                print('Downloading "%s"...' % f)
                 #cmdline = 'wget %s' % url
                 #cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
                 cmdline = _get_ascp_cmdline(url)
                 return_code = os.system(cmdline)
                 #return_code = 0;print cmdline    #for testing
                 if return_code == 0:
-                    print "Success."
+                    print("Success.")
                 else:
-                    print "Failed with return code (%s)." % return_code
+                    print("Failed with return code (%s)." % return_code)
                     out.append((url, return_code))
-                print "="*50
+                print("="*50)
     finally:
         os.chdir(orig_path)
 
@@ -155,7 +155,7 @@ def download(path, no_confirm=False):
 
 def parse_gbff(path):
     import glob
-    from parse_refseq_gbff import main
+    from .parse_refseq_gbff import main
     refseq_folder = os.path.join(path, 'refseq')
     gbff_files = glob.glob(os.path.join(refseq_folder, '*.rna.gbff.gz'))
     assert len(gbff_files) >= 30, 'Missing "*.gbff.gz" files? Found %d:\n%s' % (len(gbff_files), '\n'.join(gbff_files))

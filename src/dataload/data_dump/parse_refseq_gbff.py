@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from __future__ import print_function
 import sys
 import os.path
 import glob
@@ -99,15 +99,15 @@ class GBFFParser():
 def dump_object(obj, outfile):
     '''Dump a python object to a output file using faster cPickle module.
     '''
-    import cPickle
+    import cPickle as pickle
     import bz2
 
     protocol = 2
-    print "Dumping into \"%s\"..." % outfile,
+    print("Dumping into \"%s\"..." % outfile, end='')
     out_f = open(outfile, 'wb')
-    out_f.write(bz2.compress(cPickle.dumps(obj, protocol)))
+    out_f.write(bz2.compress(pickle.dumps(obj, protocol)))
     out_f.close()
-    print "Done!"
+    print("Done!")
 
 
 def output_gene2summary(out_d, outfile):
@@ -165,10 +165,10 @@ def main(data_folder):
         for infile in gbff_files:
             filename = os.path.split(infile)[1]
             species = filename.split('.')[0]
-            print 'Parsing "%s" (%s)...' % (filename, species),
+            print('Parsing "%s" (%s)...' % (filename, species), end='')
             gp = GBFFParser(infile)
             out_li = gp.parse()
-            print 'Done! [%s]' % len(out_li)
+            print('Done! [%s]' % len(out_li))
             if species in out_d:
                 out_d[species].extend(out_li)
             else:
@@ -179,17 +179,17 @@ def main(data_folder):
         dump_object(out_d, outfile)
 
         #output gene2summary text file
-        print 'Output "gene2summary_all.txt" file...',
+        print('Output "gene2summary_all.txt" file...', end='')
         output_gene2summary(out_d, os.path.join(data_folder,
                                                 'gene2summary_all.txt'))
-        print "Done!"
+        print("Done!")
 
         #output gene2ec text file
-        print 'Output "gene2ec_all.txt" file...',
+        print('Output "gene2ec_all.txt" file...', end='')
         output_gene2ec(out_d, os.path.join(data_folder, 'gene2ec_all.txt'))
-        print "Done!"
+        print("Done!")
     else:
-        print "Error: cannot found any '*.rna.gbff.gz' files in '%s'" % data_folder
+        print("Error: cannot found any '*.rna.gbff.gz' files in '%s'" % data_folder)
 
 if __name__ == '__main__':
     data_folder = sys.argv[1] if len(sys.argv) > 1 else DATA_FOLDER
