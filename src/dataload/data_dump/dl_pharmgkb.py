@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from __future__ import print_function
 import sys
 import os
 import os.path
@@ -26,10 +26,11 @@ from utils.mongo import get_src_dump
 from config import DATA_ARCHIVE_ROOT
 
 timestamp = time.strftime('%Y%m%d')
-DATA_FOLDER=os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/pharmgkb', timestamp)
+DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/pharmgkb', timestamp)
 
 #GENES_URL = 'http://www.pharmgkb.org/commonFileDownload.action?filename=genes.zip'
 GENES_URL = 'http://www.pharmgkb.org/download.do?objId=genes.zip&dlCls=common'
+
 
 def download(no_confirm=False):
     orig_path = os.getcwd()
@@ -41,19 +42,20 @@ def download(no_confirm=False):
             if no_confirm or ask('Remove existing file "%s"?' % filename) == 'Y':
                 os.remove(filename)
             else:
-                print "Skipped!"
+                print("Skipped!")
                 return
-        print 'Downloading "%s"...' % filename
+        print('Downloading "%s"...' % filename)
         cmdline = 'wget "%s" -O %s' % (url, filename)
         #cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
         return_code = os.system(cmdline)
         if return_code == 0:
-            print "Success."
+            print("Success.")
         else:
-            print "Failed with return code (%s)." % return_code
-        print "="*50
+            print("Failed with return code (%s)." % return_code)
+        print("="*50)
     finally:
         os.chdir(orig_path)
+
 
 def check_header():
     h = httplib2.Http()
@@ -68,7 +70,7 @@ def check_header():
 
 
 if __name__ == '__main__':
-    no_confirm = True   #set it to True for running this script automatically without intervention.
+    no_confirm = True   # set it to True for running this script automatically without intervention.
 
     src_dump = get_src_dump()
     lastmodified = check_header()
@@ -76,13 +78,13 @@ if __name__ == '__main__':
     if doc and 'lastmodified' in doc and lastmodified <= doc['lastmodified']:
         data_file = os.path.join(doc['data_folder'], 'genes.zip')
         if os.path.exists(data_file):
-            print "No newer file found. Abort now."
+            print("No newer file found. Abort now.")
             sys.exit(0)
 
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
     else:
-        if not (no_confirm or len(os.listdir(DATA_FOLDER))==0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER)=='Y'):
+        if not (no_confirm or len(os.listdir(DATA_FOLDER)) == 0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER) == 'Y'):
             sys.exit(0)
 
     log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'pharmgkb_dump.log'), prompt=(not no_confirm), default='O')
@@ -93,7 +95,7 @@ if __name__ == '__main__':
            'timestamp': timestamp,
            'data_folder': DATA_FOLDER,
            'lastmodified': lastmodified,
-           'logfile':logfile,
+           'logfile': logfile,
            'status': 'downloading'}
     src_dump.save(doc)
     t0 = time.time()
@@ -103,8 +105,8 @@ if __name__ == '__main__':
         sys.stdout.close()
     #mark the download finished successfully
     _updates = {
-                'status': 'success',
-                'time': timesofar(t0),
-                'pending_to_upload': True    # a flag to trigger data uploading
-                }
+        'status': 'success',
+        'time': timesofar(t0),
+        'pending_to_upload': True    # a flag to trigger data uploading
+    }
     src_dump.update({'_id': 'pharmgkb'}, {'$set': _updates})
