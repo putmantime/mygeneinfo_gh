@@ -9,7 +9,9 @@ import time
 from utils.mongo import get_target_db, doc_feeder
 from .backend import GeneDocMongoDBBackend
 from utils.diff import diff_collections
-from utils.common import iter_n, timesofar, LogPrint, dump, send_s3_file, ask, safewfile
+from utils.common import (iter_n, timesofar, LogPrint,
+                          dump, send_s3_file, ask, safewfile,
+                          is_str)
 from config import LOG_FOLDER
 
 
@@ -45,7 +47,7 @@ class GeneDocSyncer:
 
     def get_changes(self, source_col, use_parallel=True):
         target_col = self._target_col
-        source_col = self._db[source_col] if isinstance(source_col, basestring) else source_col
+        source_col = self._db[source_col] if is_str(source_col) else source_col
 
         src = GeneDocMongoDBBackend(source_col)
         target = GeneDocMongoDBBackend(target_col)
@@ -132,7 +134,7 @@ class GeneDocSyncer:
             print('ERROR!!!\n\t Should be "{}", but get "{}"'.format(len(_li1), len(_li2)))
 
     def _get_cleaned_timestamp(self, timestamp):
-        if isinstance(timestamp, basestring):
+        if is_str(timestamp):
             timestamp = datetime.strptime(timestamp, '%Y%m%d')
         assert isinstance(timestamp, datetime)
         return timestamp
@@ -186,7 +188,7 @@ class GeneDocSyncer:
 
     def get_target_latest_timestamp(self):
         cur = self._target_col.find(fields=['_timestamp']).sort([('_timestamp', -1)]).limit(1)
-        doc = cur.next()
+        doc = next(cur)
         cur.close()
         latest_ts = doc['_timestamp']
         return latest_ts
