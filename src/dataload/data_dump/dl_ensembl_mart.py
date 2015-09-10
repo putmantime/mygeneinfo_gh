@@ -1,4 +1,4 @@
-# Copyright [2010-2013] [Chunlei Wu]
+# Copyright [2010-2015] [Chunlei Wu]
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ Usage:
      python dl_ensembl.py check      # Check the lastest Ensembl/BioMart version
      python dl_ensembl.py <ensembl_ver>   # perform the actual download
 '''
+from __future__ import print_function
 import sys
 import os
 import time
@@ -91,20 +92,20 @@ def get_all_species(release):
     import tempfile
     outfile = tempfile.mktemp() + '.txt.gz'
     try:
-        print 'Downloading "species.txt.gz"...',
+        print('Downloading "species.txt.gz"...', end=' ')
         out_f = file(outfile, 'w')
         ftp = FTP('ftp.ensembl.org')
         ftp.login()
         species_file = '/pub/release-%s/mysql/ensembl_production_%s/species.txt.gz' % (release, release)
         ftp.retrbinary("RETR " + species_file, out_f.write)
         out_f.close()
-        print 'Done.'
+        print('Done.')
 
         #load saved file
-        print 'Parsing "species.txt.gz"...',
+        print('Parsing "species.txt.gz"...', end=' ')
         species_li = tab2list(outfile, (1, 2, 7), header=0)   # db_name,common_name,taxid
         species_li = [x[:-1] + [_to_int(x[-1])] for x in species_li]
-        print 'Done.'
+        print('Done.')
     finally:
         os.remove(outfile)
         pass
@@ -185,7 +186,7 @@ class BioMart(object):
         out_f, outfile = safewfile(outfile, prompt=(not self.no_confirm), default='O')
         if header:
             out_f.write('\t'.join(header) + '\n')
-        print 'Dumping "%s"...' % os.path.split(outfile)[1]
+        print('Dumping "%s"...' % os.path.split(outfile)[1])
         for species in self.species_li:
             dataset = self.get_dataset_name(species)
             taxid = species[2]
@@ -193,12 +194,12 @@ class BioMart(object):
                 continue
             xml = self._make_query_xml(dataset, attributes=attributes, filters=filters)
             if debug:
-                print xml
+                print(xml)
             try:
                 con = self.query_mart(xml)
             except MartException:
                 err_msg = sys.exc_value.args[0]
-                print species[0], err_msg
+                print(species[0], err_msg)
                 continue
             cnt = 0
             for line in con.split('\n'):
@@ -206,9 +207,9 @@ class BioMart(object):
                     out_f.write(str(taxid) + '\t' + line + '\n')
                     cnt += 1
                     cnt_all += 1
-            print species[0], cnt
+            print(species[0], cnt)
         out_f.close()
-        print "Total: %d" % cnt_all
+        print("Total: %d" % cnt_all)
 
     def get_gene__main(self, outfile, debug=False):
         header = ['taxonomy_id',
@@ -283,17 +284,17 @@ class BioMart(object):
 
 def main():
     if len(sys.argv) == 2 and sys.argv[1] == 'check':
-        print "Checking latest mart_version:\t",
+        print("Checking latest mart_version:\t", end=' ')
         mart_version = chk_latest_mart_version()
-        print mart_version
+        print(mart_version)
         return
 
     if len(sys.argv) > 1:
         mart_version = sys.argv[1]
     else:
-        print "Checking latest mart_version:\t",
+        print("Checking latest mart_version:\t", end=' ')
         mart_version = chk_latest_mart_version()
-        print mart_version
+        print(mart_version)
 
     BM = BioMart()
     BM.species_li = get_all_species(mart_version)
@@ -319,15 +320,15 @@ def main_cron():
     no_confirm = True   # set it to True for running this script automatically without intervention.
 
     src_dump = get_src_dump()
-    print "Checking latest mart_version:\t",
+    print("Checking latest mart_version:\t", end=' ')
     mart_version = chk_latest_mart_version()
-    print mart_version
+    print(mart_version)
 
     doc = src_dump.find_one({'_id': 'ensembl'})
     if doc and 'release' in doc and mart_version <= doc['release']:
         data_file = os.path.join(doc['data_folder'], 'gene_ensembl__gene__main.txt')
         if os.path.exists(data_file):
-            print "No newer release found. Abort now."
+            print("No newer release found. Abort now.")
             sys.exit(0)
 
     DATA_FOLDER = os.path.join(ENSEMBL_FOLDER, str(mart_version))
