@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from __future__ import print_function
 import sys
 import os
 import os.path
@@ -55,7 +55,7 @@ def check_refseq_release():
     if doc and 'release' in doc and refseq_release <= doc['release']:
         data_file = os.path.join(doc['data_folder'], 'complete.109.rna.gbff.gz')
         if os.path.exists(data_file):
-            print "No newer release found. Abort now."
+            print("No newer release found. Abort now.")
             sys.exit(0)
 
 
@@ -69,7 +69,7 @@ def download(path, release, no_confirm=False):
 
         _url = 'ftp://' + FTP_SERVER + BASE_PATH + DATA_FILE
         url_li = _expand_wildchar_urls(_url)
-        print 'Found {} "{}" files to download.'.format(len(url_li), DATA_FILE)
+        print('Found {} "{}" files to download.'.format(len(url_li), DATA_FILE))
 
         for url in url_li:
             os.chdir(data_folder)
@@ -78,20 +78,20 @@ def download(path, release, no_confirm=False):
                 if no_confirm or ask('Remove existing file "%s"?' % filename) == 'Y':
                     os.remove(filename)
                 else:
-                    print "Skipped!"
+                    print("Skipped!")
                     continue
-            print 'Downloading "%s"...' % filename
+            print('Downloading "%s"...' % filename)
             #cmdline = 'wget %s' % url
             #cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
             cmdline = _get_ascp_cmdline(url)
             return_code = os.system(cmdline)
             #return_code = 0;print cmdline    #for testing
             if return_code == 0:
-                print "Success."
+                print("Success.")
             else:
-                print "Failed with return code (%s)." % return_code
+                print("Failed with return code (%s)." % return_code)
                 out.append((url, return_code))
-            print "="*50
+            print("="*50)
     finally:
         os.chdir(orig_path)
 
@@ -101,16 +101,16 @@ def download(path, release, no_confirm=False):
 def main_cron():
     no_confirm = True   # set it to True for running this script automatically without intervention.
 
-    print "Checking latest refseq release:\t",
+    print("Checking latest refseq release:\t", end='')
     refseq_release = get_refseq_release()
-    print refseq_release
+    print(refseq_release)
 
     src_dump = get_src_dump()
     doc = src_dump.find_one({'_id': 'refseq'})
     if doc and 'release' in doc and refseq_release <= doc['release']:
         data_file = os.path.join(doc['data_folder'], 'complete.109.rna.gbff.gz')
         if os.path.exists(data_file):
-            print "No newer release found. Abort now."
+            print("No newer release found. Abort now.")
             sys.exit(0)
 
     DATA_FOLDER = os.path.join(REFSEQ_FOLDER, str(refseq_release))
