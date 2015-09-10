@@ -256,6 +256,19 @@ def is_int(s):
         return False
 
 
+def is_str(s):
+    """return True or False if input is a string or not.
+        python3 compatible.
+    """
+    return isinstance(s, str_types)
+
+
+def is_seq(li):
+    """return True if input is either a list or a tuple.
+    """
+    return isinstance(li, (list, tuple))
+
+
 def newer(t0, t1, format='%Y%m%d'):
     '''t0 and t1 are string of timestamps matching "format" pattern.
        Return True if t1 is newer than t0.
