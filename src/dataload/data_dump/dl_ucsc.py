@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from __future__ import print_function
 import sys
 import os
 import os.path
@@ -67,7 +67,6 @@ def get_file_list():
     file_path = 'goldenPath/mm9/database/refFlat.txt.gz'
     fli.append(file_path)
 
-
     fli = [(file_path, get_ftpfile_lastmodified(ftp, file_path)) for file_path in fli]
     fli = [x for x in fli if x[1]]    # remove item if lastmodified is None
     ftp.close()
@@ -119,10 +118,10 @@ def download(download_list=None, no_confirm=False):
                 if not os.path.exists(path):
                     os.makedirs(path)
                 os.chdir(path)
-                print 'Downloading "%s"...' % file_path,
+                print('Downloading "%s"...' % file_path, end='')
                 url = 'ftp://{}/{}'.format(FTP_SERVER, file_path)
                 download_ftp_file(url, os.path.join(DATA_FOLDER, file_path))
-                print "done."
+                print("done.")
                 #cmdline = 'wget -N %s' % url
                 ##cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
                 #return_code = os.system(cmdline)
@@ -131,7 +130,7 @@ def download(download_list=None, no_confirm=False):
                 #else:
                 #    print cmdline
                 #    print "Failed with return code (%s)." % return_code
-                print "="*50
+                print("="*50)
             return len(download_list)
         else:
             return 0
@@ -145,7 +144,7 @@ if __name__ == '__main__':
     src_dump = get_src_dump()
     download_list = get_file_list_for_download()
     if len(download_list) == 0:
-        print "No newer file found. Abort now."
+        print("No newer file found. Abort now.")
         sys.exit(0)
 
     doc = src_dump.find_one({'_id': 'ucsc'})
