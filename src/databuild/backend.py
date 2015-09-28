@@ -186,13 +186,15 @@ class GeneDocESBackend(GeneDocBackendBase):
         return self.target_esidxer.count()['count']
 
     def insert(self, doc_li):
-        conn = self.target_esidxer.conn
-        index_name = self.target_esidxer.ES_INDEX_NAME
-        index_type = self.target_esidxer.ES_INDEX_TYPE
-        for doc in doc_li:
-            conn.index(doc, index_name, index_type, doc['_id'], bulk=True)
-        conn.indices.flush()
-        conn.indices.refresh()
+        self.target_esidxer.add_docs(doc_li)
+
+        # conn = self.target_esidxer.add_docs(doc_li).conn
+        # index_name = self.target_esidxer.ES_INDEX_NAME
+        # index_type = self.target_esidxer.ES_INDEX_TYPE
+        # for doc in doc_li:
+        #     conn.index(doc, index_name, index_type, doc['_id'], bulk=True)
+        # conn.indices.flush()
+        # conn.indices.refresh()
 
     def update(self, id, extra_doc):
         self.target_esidxer.update(id, extra_doc, bulk=True)
@@ -227,27 +229,20 @@ class GeneDocESBackend(GeneDocBackendBase):
         # index_type = self.target_esidxer.ES_INDEX_TYPE
         # return conn.get(index_name, index_type, id)
 
-    def mget_from_ids(self, ids, asiter=False, step=100000):
-        '''ids is an id list.'''
-        conn = self.target_esidxer.conn
-        index_name = self.target_esidxer.ES_INDEX_NAME
-        index_type = self.target_esidxer.ES_INDEX_TYPE
-        res = []
-        for i in range(0, len(ids), step):
-            _ids = ids[i:i + step]
-            _res = conn.mget(_ids, index_name, index_type)
-            res.extend(_res)
-        return iter(res) if asiter else res
+    def mget_from_ids(self, ids, step=100000):
+        '''ids is an id list. always return a generator'''
+        return self.target_esidxer.get_docs(ids, step=step)
 
     def remove_from_ids(self, ids, step=10000):
-        conn = self.target_esidxer.conn
-        index_type = self.target_esidxer.ES_INDEX_TYPE
-        for i in range(0, len(ids), step):
-            for _id in ids[i:i+step]:
-                self.target_esidxer.delete_doc(index_type=index_type, id=_id, bulk=True)
-            conn.flush_bulk()
-        conn.indices.flush()
-        conn.indices.refresh()
+        self.target_esidxer.delete_docs(ids, step=step)
+        # conn = self.target_esidxer.conn
+        # index_type = self.target_esidxer.ES_INDEX_TYPE
+        # for i in range(0, len(ids), step):
+        #     for _id in ids[i:i+step]:
+        #         self.target_esidxer.delete_doc(index_type=index_type, id=_id, bulk=True)
+        #     conn.flush_bulk()
+        # conn.indices.flush()
+        # conn.indices.refresh()
 
 
 class GeneDocCouchDBBackend(GeneDocBackendBase):

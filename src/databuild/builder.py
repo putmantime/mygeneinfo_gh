@@ -5,11 +5,14 @@ import time
 import copy
 from datetime import datetime
 from pprint import pprint
+
+if sys.version_info.major == 2:
+    input = raw_input
+
 from utils.mongo import (get_src_db, get_target_db, get_src_master,
                          get_src_build, get_src_dump, doc_feeder)
 from utils.common import (loadobj, timesofar, safewfile, LogPrint, ask,
-                          dump2gridfs, get_timestamp, get_random_string,
-                          input)
+                          dump2gridfs, get_timestamp, get_random_string)
 from utils.dataload import list2dict, alwayslist
 from utils.es import ESIndexer
 import databuild.backend
@@ -303,7 +306,6 @@ class DataBuilder():
         '''resume a merging process after a failure.
              .merge_resume('mygene_allspecies', 'reporter')
         '''
-        from pprint import pprint
         assert not self.using_ipython_cluster, "Abort. Can only resume merging in non-parallel mode."
         self.load_build_config(build_config)
         last_build = self._build_config['build'][-1]
@@ -712,7 +714,6 @@ class DataBuilder():
         import random
         import itertools
         import pyes
-        from pprint import pprint
 
         self.load_build_config(build_config)
         last_build = self._build_config['build'][-1]
@@ -779,7 +780,6 @@ class DataBuilder():
             optional "es_host" argument can be used to specified another ES host, otherwise default ES_HOST.
             optional "es_index_name" argument can be used to pass an alternative index name, otherwise same as mongodb collection name
         """
-        from pprint import pprint
         self.load_build_config(build_config)
         last_build = self._build_config['build'][last_build_idx]
         print("Last build record:")
@@ -823,14 +823,13 @@ class DataBuilder():
                              step=5000)
         if build_config == 'mygene_allspecies':
             es_idxer.number_of_shards = 10   # default 5
-        print("ES host:", es_idxer.conn.servers[0].geturl())
-        print("ES index:", es_index_name)
+        es_idxer.check()
         if ask("Continue to build ES index?") == 'Y':
             es_idxer.use_parallel = use_parallel
             #es_idxer.s = 609000
-            if es_idxer.conn.indices.exists_index(es_idxer.ES_INDEX_NAME):
+            if es_idxer.exists_index(es_idxer.ES_INDEX_NAME):
                 if ask('Index "{}" exists. Delete?'.format(es_idxer.ES_INDEX_NAME)) == 'Y':
-                    es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
+                    es_idxer.conn.indices.delete(es_idxer.ES_INDEX_NAME)
                 else:
                     print("Abort.")
                     return
