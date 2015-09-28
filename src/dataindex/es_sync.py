@@ -5,7 +5,6 @@ import time
 import re
 import os
 from pprint import pprint
-from pyes import TermQuery
 
 from config import TARGET_ES_INDEX_SUFFIX
 from utils.es import ESIndexer
@@ -19,46 +18,29 @@ from .tunnel import open_tunnel, es_local_tunnel_port
 class ESIndexer2(ESIndexer):
     step = 5000
 
-    def _get_es_version(self):
-        res = self.conn._send_request('GET', '/')
-        return res['version']['number']
-
     def _split_source_name(self, source):
         pat = '(\w+)_(\d{8})_\w{8}'
         mat = re.match(pat, source)
         prefix, timestamp = mat.groups()
         return prefix, timestamp
 
-    def get_source_collection(self, changes):
-        '''deprecated. subject to remove.'''
-        #assert self.ES_INDEX_NAME in ['genedoc_mygene_current', 'genedoc_mygene_allspecies_current']
-        src = changes['source']
-        target_db = get_target_db()
-        target_col = target_db[src]
-        return GeneDocMongoDBBackend(target_col)
-
     def get_timestamp_stats(self, debug=False):
         q = {
-            "query": {
-                "match_all": {}
-            },
-            "size": 0,
-            "fields": [],
-            "facets": {
+            "aggs": {
                 "timestamp": {
                     "terms": {
                         "field": "_timestamp",
-                        "all_terms": True,
-                        "size": 1000,    # default size = 10
-                        "order": "reverse_term"
+                        "size": 1000,
+                        "order": {"_term": "desc"}
                     }
                 }
-            }
+            },
+            "size": 0
         }
-        res = self.conn.search_raw(q, indices=self.ES_INDEX_NAME, doc_types=self.ES_INDEX_TYPE)
+        res = self.conn.search(index=self.ES_INDEX_NAME, doc_type=self.ES_INDEX_TYPE, body=q)
         if debug:
             return res
-        return [(datetime.utcfromtimestamp(x['term']*1./1000), x['count']) for x in res['facets']['timestamp']['terms']]
+        return [(datetime.utcfromtimestamp(x['key']*1./1000), x['doc_count']) for x in res['aggregations']['timestamp']['buckets']]
 
     def get_latest_timestamp(self):
         ts_stats = self.get_timestamp_stats()
@@ -67,7 +49,6 @@ class ESIndexer2(ESIndexer):
     def pre_verify_changes(self, changes):
         src = changes['source']
         prefix = self._split_source_name(src)[0]
-        #assert self.ES_INDEX_NAME.startswith(prefix+'_current'),\
         _es_target = prefix + TARGET_ES_INDEX_SUFFIX    # '_current_1'
         assert self.ES_INDEX_NAME == _es_target,\
             '"{}" does not match "{}"'.format(self.ES_INDEX_NAME, _es_target)
@@ -83,7 +64,6 @@ class ESIndexer2(ESIndexer):
         if not (noconfirm or ask('\nContinue to apply changes?') == 'Y'):
             print("Aborted.")
             return -1
-        #src = self.get_source_collection(changes)
         step = self.step
         _db = get_target_db()
         source_col = _db[changes['source']]
@@ -175,16 +155,13 @@ class ESIndexer2(ESIndexer):
             print('ERROR!!!\n\t Should be "{}", but get "{}"'.format(_cnt_all, _cnt))
 
         print("Verifying all new docs have updated timestamp...")
-        q = TermQuery()
-        if self._get_es_version().startswith('0'):
-            # for es v0.90
-            ts = time.mktime(_timestamp.utctimetuple())
-            ts = ts - 8 * 3600    # convert to utc timestamp, here 8 hour difference is hard-coded (PST)
-            ts = int(ts * 1000)
-            q.add('_timestamp', ts)
-        else:
-            # for es v1 and up
-            q.add('_timestamp', _timestamp)
+        q = {
+            'query': {
+                'term': {
+                    '_timestamp': _timestamp
+                }
+            }
+        }
         cur = self.doc_feeder(query=q, fields=[], step=10000)
         _li1 = sorted(changes['add'] + [x['_id'] for x in changes['update']])
         _li2 = sorted([x['_id'] for x in cur])
@@ -192,23 +169,6 @@ class ESIndexer2(ESIndexer):
             print("{}=={}...OK".format(len(_li1), len(_li2)))
         else:
             print('ERROR!!!\n\t Should be "{}", but get "{}"'.format(len(_li1), len(_li2)))
-
-    def count(self, query=None, index_type=None):
-        '''tmp overwrite count method.'''
-        conn = self.conn
-        index_name = self.ES_INDEX_NAME
-        index_type = index_type or self.ES_INDEX_TYPE
-        if query is None:
-            body = None
-        else:
-            if self._get_es_version().startswith('0'):
-                # for es v0.90
-                body = query.serialize()
-            else:
-                # for es v1 and up
-                body = query.search().serialize()
-        path = conn._make_path(index_name, index_type, "_count")
-        return conn._send_request('GET', path, body)
 
 
 #esi = utils.es.ESIndexer2('genedoc_mygene' + TARGET_ES_INDEX_SUFFIX, es_host='su02:9500')
