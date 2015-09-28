@@ -1,5 +1,9 @@
 """dataindex module is for building index for "merged" genedocs (from databuild module) using ElasticSearch."""
 
+
+"""
+## The following code are deprecated.
+#
 #http://www.elasticsearch.org/guide/reference/query-dsl/custom-filters-score-query.html
 #http://www.elasticsearch.org/guide/reference/query-dsl/custom-score-query.html
 #http://www.elasticsearch.org/guide/reference/query-dsl/custom-boost-factor-query.html
@@ -21,7 +25,7 @@ from config import ES_INDEX_NAME, ES_INDEX_TYPE
 es = get_es()
 
 def is_int(s):
-    """return True or False if input string is integer or not."""
+    '''return True or False if input string is integer or not.'''
     try:
         int(s)
         return True
@@ -239,13 +243,13 @@ def test2(q):
 
 class ESQueryBuilder():
     def __init__(self, **query_options):
-        """You can pass these options:
+        '''You can pass these options:
             fields     default ['name', 'symbol', 'taxid']
             from       default 0
             size       default 10
             sort       e.g. sort='entrezgene,-symbol'
             explain    true or false
-        """
+        '''
         self.options = query_options
         self._parse_sort_option(self.options)
         self._allowed_options = ['fields', 'start', 'from', 'size', 'sort', 'explain', 'version']
@@ -495,7 +499,7 @@ class ESQueryBuilder():
         return _q
 
     def build_multiple_id_query(self, id_list, scopes=None):
-        """make a query body for msearch query."""
+        '''make a query body for msearch query.'''
         _q = []
         for id in id_list:
             _q.extend(['{}', json.dumps(self.build_id_query(id, scopes))])
@@ -579,4 +583,4 @@ def make_test_index():
     print conn.flush()
     print conn.refresh()
     print 'Done! - {} docs indexed.'.format(cnt)
-
+"""
