@@ -129,13 +129,13 @@ def safewfile(filename, prompt=True, default='C', mode='w'):
                 break
         elif option == 'A':
             print("Append to original file.")
-            f = file(filename, 'a')
+            f = open(filename, 'a')
             f.write('\n' + "=" * 20 + 'Appending on ' + time.ctime() + "=" * 20 + '\n')
             return f, filename
         print('Use "%s" instead.' % addsuffix(filename, '_' + str(suffix)))
         filename = addsuffix(filename, '_' + str(suffix))
         suffix += 1
-    return file(filename, mode), filename
+    return open(filename, mode), filename
 
 
 def SubStr(input_string, start_string='', end_string='', include=0):
@@ -229,7 +229,7 @@ def loadobj(filename, mode='file'):
         fobj = fs.get(filename)
     else:
         if isinstance(filename, str_types):
-            fobj = file(filename, 'rb')
+            fobj = open(filename, 'rb')
         else:
             fobj = filename   # input is a file-like handler
     gzfobj = gzip.GzipFile(fileobj=fobj)
