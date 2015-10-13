@@ -3,6 +3,8 @@ from utils.dataload import (tab2list, load_start, load_done)
 import urllib
 import csv
 
+# Populates MICROBE gene entries with genomic position data
+# Currently updates the 120 microbial taxids that are NCBI Reference Sequences
 
 __metadata__ = {
     '__collection__': 'entrez_genomic_pos',
@@ -15,7 +17,7 @@ DATAFILE = 'gene2refseq.gz'
 
 def load_genedoc():
     """
-    loads gene data from NCBI's refseq2gene.gz file.
+    Loads gene data from NCBI's refseq2gene.gz file.
     Parses it based on genomic position data and refseq status provided by the
     list of taxids from get_ref_microbe_taxids() as lookup table
     :return:
@@ -74,7 +76,7 @@ def get_mapping():
 
 def get_ref_microbe_taxids():
     """
-    Download the latest bacterial genome assembly summary from the NCBI genome
+    Downloads the latest bacterial genome assembly summary from the NCBI genome
     ftp site and generate a list of taxids of the bacterial reference genomes.
 
     :return:
