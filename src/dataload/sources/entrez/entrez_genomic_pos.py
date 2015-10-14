@@ -1,18 +1,24 @@
+'''
+Populates MICROBE gene entries with genomic position data
+Currently updates the 120 microbial taxids that are NCBI Reference Sequences
+'''
+import os.path
 from utils.common import (dump, loadobj, get_timestamp)
 from utils.dataload import (tab2list, load_start, load_done)
-import urllib
-import csv
+from dataload import get_data_folder
 
-# Populates MICROBE gene entries with genomic position data
-# Currently updates the 120 microbial taxids that are NCBI Reference Sequences
+
+DATA_FOLDER = get_data_folder('entrez')
+print('DATA_FOLDER: ' + DATA_FOLDER)
+
 
 __metadata__ = {
     '__collection__': 'entrez_genomic_pos',
     'structure': {'genomic_pos': None}
 }
 
-TAXIDS_FILE = "ref_microbe_taxids_20151013.pyobj"
-DATAFILE = 'gene2refseq.gz'
+TAXIDS_FILE = os.path.join(DATA_FOLDER, "../ref_microbe_taxids_20151014.pyobj")
+DATAFILE = os.path.join(DATA_FOLDER, 'gene/gene2refseq.gz')
 
 
 def load_genedoc():
@@ -77,6 +83,9 @@ def get_ref_microbe_taxids():
 
     :return:
     """
+    import urllib
+    import csv
+
     urlbase = 'ftp://ftp.ncbi.nlm.nih.gov'
     urlextension = '/genomes/refseq/bacteria/assembly_summary.txt'
     assembly = urllib.urlopen(urlbase + urlextension)
