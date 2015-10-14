@@ -33,11 +33,7 @@ def load_genedoc():
 
     for gene in gene2genomic_pos_li:
         count += 1
-
-        if gene[5] == '+':
-                strand = "1"
-        else:
-                strand = "-1"
+        strand = 1 if gene[5] == '+' else -1
 
         mgi_dict = {
             '_id': gene[1],
