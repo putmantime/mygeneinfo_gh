@@ -25,8 +25,8 @@ from tornado.options import define, options
 src_path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
 if src_path not in sys.path:
     sys.path.append(src_path)
-from dataindex import ESQuery
-from helper import BaseHandler
+#from dataindex import ESQuery
+#from helper import BaseHandler
 
 __USE_WSGI__ = False
 
@@ -71,7 +71,6 @@ class MetaDataHandler(tornado.web.RequestHandler):
         metadata = bs.get_metadata(raw=True)
         metadata = '{"app_revision": "%s",' % __revision__ + metadata[1:]
         self.write(metadata)
-"""
 
 
 class GeneHandler(BaseHandler):
@@ -166,6 +165,7 @@ class IntervalQueryHandler(tornado.web.RequestHandler):
             self.set_header("Content-Type", "application/json; charset=UTF-8")
             self.write(_json_data)
 
+"""
 
 class MongoViewer(tornado.web.RequestHandler):
     def get(self, db, collection=None, id=None):
@@ -240,10 +240,10 @@ APP_LIST = [
     #    (r"/status", StatusCheckHandler),
     #    (r"/metadata", MetaDataHandler),
     #    (r"/release_notes", ReleaseNotesHandler),
-    (r"/gene/([\w\-\.]+)/?", GeneHandler),   # for get request
-    (r"/gene/?", GeneHandler),               # for post request
-    (r"/query/?", QueryHandler),
-    (r"/interval/?", IntervalQueryHandler),
+    #(r"/gene/([\w\-\.]+)/?", GeneHandler),   # for get request
+    #(r"/gene/?", GeneHandler),               # for post request
+    #(r"/query/?", QueryHandler),
+    #(r"/interval/?", IntervalQueryHandler),
     (r"/mongo/(\w+)/?(\w*)/?(\w*)/?", MongoViewer),
     (r"/log/(\w+)/(\w+)/?(\w*)/?", LogViewer),
 ]
