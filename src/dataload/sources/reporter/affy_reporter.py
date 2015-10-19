@@ -3,7 +3,7 @@ from utils.dataload import (load_start, load_done, tab2dict,
                             dict_apply)
 from config import DATA_ARCHIVE_ROOT
 DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/reporters')
-AFFY_RELEASE = 'na34'
+AFFY_RELEASE = 'na35'
 AFFY_FILE_EXTENSION = '.zip'  # or '.gz'
 AFFY_DATA_FOLDER = os.path.join(DATA_FOLDER, 'affy', AFFY_RELEASE)
 AFFY_ANNOT_FILES = [
@@ -40,6 +40,7 @@ AFFY_ANNOT_FILES = [
 
 platform_li = [af['name'] for af in AFFY_ANNOT_FILES]
 
+
 def _load_affy(df):
     filename = os.path.split(df)[1]
     rawfile, ext = os.path.splitext(filename)
@@ -55,6 +56,7 @@ def _load_affy(df):
         else:
             dict_apply(gene2affy, k.strip(), dd[k])
     return gene2affy
+
 
 def loaddata():
     affy_d = {}
