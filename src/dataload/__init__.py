@@ -1,5 +1,5 @@
 '''data_load module is for loading individual genedocs from various data sources.'''
-
+from __future__ import print_function
 import sys
 import copy
 import types
@@ -8,7 +8,7 @@ import datetime
 import importlib
 from mongokit import Document, CustomType
 from utils.mongo import get_src_conn, get_src_dump
-from utils.common import get_timestamp, get_random_string, timesofar, dump2gridfs
+from utils.common import get_timestamp, get_random_string, timesofar, dump2gridfs, iter_n
 from config import DATA_SRC_DATABASE, DATA_SRC_MASTER_COLLECTION
 
 
@@ -23,7 +23,8 @@ __sources_dict__ = {
         'entrez.entrez_go',
         'entrez.entrez_ec',
         'entrez.entrez_retired',
-        'entrez.entrez_generif'
+        'entrez.entrez_generif',
+        'entrez.entrez_genomic_pos',
     ],
     'ensembl': [
         'ensembl.ensembl_gene',
@@ -41,8 +42,8 @@ __sources_dict__ = {
     ],
     'pharmgkb': ['pharmgkb'],
     'reporter': ['reporter'],
-    'ucsc':     ['ucsc.ucsc_exons'],
-    'cpdb':     ['cpdb']
+    'ucsc': ['ucsc.ucsc_exons'],
+    'cpdb': ['cpdb']
 }
 
 __sources__ = None   # should be a list defined at runtime
@@ -68,9 +69,10 @@ class GeneDocSourceMaster(Document):
     __database__ = DATA_SRC_DATABASE
     use_dot_notation = True
     use_schemaless = True
-    structure = {'name': unicode,
-                 'timestamp': datetime.datetime,
-                 }
+    structure = {
+        'name': unicode,
+        'timestamp': datetime.datetime,
+    }
 
 
 class GeneDocSource(Document):
@@ -95,27 +97,31 @@ class GeneDocSource(Document):
         return new_collection
 
     def doc_iterator(self, genedoc_d, batch=True, step=10000, validate=True):
-        if batch:
-            doc_li = []
-            i = 0
-        for _id, doc in genedoc_d.items():
-            doc['_id'] = _id
-            _doc = copy.copy(self)
-            _doc.clear()
-            _doc.update(doc)
-            if validate:
-                _doc.validate()
+        if isinstance(genedoc_d, types.GeneratorType) and batch:
+            for doc_li in iter_n(genedoc_d, n=step):
+                yield doc_li
+        else:
             if batch:
-                doc_li.append(_doc)
-                i += 1
-                if i % step == 0:
-                    yield doc_li
-                    doc_li = []
-            else:
-                yield _doc
+                doc_li = []
+                i = 0
+            for _id, doc in genedoc_d.items():
+                doc['_id'] = _id
+                _doc = copy.copy(self)
+                _doc.clear()
+                _doc.update(doc)
+                if validate:
+                    _doc.validate()
+                if batch:
+                    doc_li.append(_doc)
+                    i += 1
+                    if i % step == 0:
+                        yield doc_li
+                        doc_li = []
+                else:
+                    yield _doc
 
-        if batch:
-            yield doc_li
+            if batch:
+                yield doc_li
 
     def load(self, genedoc_d=None, update_data=True, update_master=True, test=False, step=10000):
         if not self.temp_collection:
@@ -126,7 +132,7 @@ class GeneDocSource(Document):
         if update_data:
             genedoc_d = genedoc_d or self.load_genedoc()
 
-            print "Uploading to the DB...",
+            print("Uploading to the DB...", end='')
             t0 = time.time()
             # for doc in self.doc_iterator(genedoc_d, batch=False):
             #     if not test:
@@ -134,21 +140,21 @@ class GeneDocSource(Document):
             for doc_li in self.doc_iterator(genedoc_d, batch=True, step=step):
                 if not test:
                     self.temp_collection.insert(doc_li, manipulate=False, check_keys=False)
-            print 'Done[%s]' % timesofar(t0)
+            print('Done[%s]' % timesofar(t0))
             self.switch_collection()
 
             if getattr(self, 'ENTREZ_GENEDOC_ROOT', False):
-                print 'Uploading "geneid_d" to GridFS...',
+                print('Uploading "geneid_d" to GridFS...', end='')
                 t0 = time.time()
                 geneid_d = self.get_geneid_d()
                 dump2gridfs(geneid_d, self.__collection__ + '__geneid_d.pyobj', self.db)
-                print 'Done[%s]' % timesofar(t0)
+                print('Done[%s]' % timesofar(t0))
             if getattr(self, 'ENSEMBL_GENEDOC_ROOT', False):
-                print 'Uploading "mapping2entrezgene" to GridFS...',
+                print('Uploading "mapping2entrezgene" to GridFS...', end='')
                 t0 = time.time()
                 x2entrezgene_list = self.get_mapping_to_entrez()
                 dump2gridfs(x2entrezgene_list, self.__collection__ + '__2entrezgene_list.pyobj', self.db)
-                print 'Done[%s]' % timesofar(t0)
+                print('Done[%s]' % timesofar(t0))
 
         if update_master:
             # update src_master collection
@@ -175,7 +181,7 @@ class GeneDocSource(Document):
                 self.collection.rename(new_name, dropTarget=True)
             self.temp_collection.rename(self.__collection__)
         else:
-            print "Error: load data first."
+            print("Error: load data first.")
 
     def validate_all(self, genedoc_d=None):
         """validate all genedoc_d."""
@@ -206,7 +212,7 @@ def get_src(src):
 
 
 def load_src(src, **kwargs):
-    print "Loading %s..." % src
+    print("Loading %s..." % src)
     _src = conn[src + '_doc']()
     _src.load(**kwargs)
 
@@ -225,7 +231,7 @@ def get_mapping():
     mapping = {}
     properties = {}
     for src in __sources__:
-        print "Loading mapping from %s..." % src
+        print("Loading mapping from %s..." % src)
         _src = conn[src + '_doc']()
         _field_properties = _src.get_mapping()
         properties.update(_field_properties)
@@ -242,7 +248,9 @@ def main():
     '''
     Example:
         python -m dataload ensembl.ensembl_gene ensembl.ensembl_acc ensembl.ensembl_genomic_pos ensembl.ensembl_prosite ensembl.ensembl_interpro
-        python -m dataload/__init__ entrez.entrez_gene entrez.entrez_homologene entrez.entrez_genesummary entrez.entrez_accession entrez.entrez_refseq entrez.entrez_unigene entrez.entrez_go entrez.entrez_ec entrez.entrez_retired
+        python -m dataload/__init__ entrez.entrez_gene entrez.entrez_homologene entrez.entrez_genesummary
+                                    entrez.entrez_accession entrez.entrez_refseq entrez.entrez_unigene entrez.entrez_go
+                                    entrez.entrez_ec entrez.entrez_retired
 
     '''
 
