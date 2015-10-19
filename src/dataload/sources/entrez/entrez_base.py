@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os.path
 from config import species_li, taxid_d
 from utils.common import file_newer, loadobj, dump
@@ -73,14 +74,15 @@ class GeneInfoParser(EntrezParserBase):
                 out['alias'] = normalized_value(synonyms.split('|'))
 
             for x in dbxrefs.split('|'):
-                if x == '-': continue
+                if x == '-':
+                    continue
                 xd = x.split(':')
                 if len(xd) == 3 and xd[0] == xd[1] and xd[0] in ['HGNC', 'MGI']:
                     xd = xd[1:]      # a fix for NCBI bug for dup xref prefix, 'HGNC:HGNC:36328'
                 try:
                     _db, _id = xd
                 except:
-                    print x
+                    print(x)
                     raise
                 if _db.lower() in ['ensembl', 'imgt/gene-db']:      # we don't need ensembl xref from here, we will get it from Ensembl directly
                     continue                                        # we don't need 'IMGT/GENE-DB" xref either, because they are mostly the same as gene symbol
@@ -128,10 +130,10 @@ def get_geneid_d(species_li=None, load_cache=True, save_cache=True):
        file_newer(_cache_file, 'gene/gene_info.gz') and \
        file_newer(_cache_file, 'gene/gene_history.gz'):
 
-        print 'Loading "geneid_d" from cache file...',
+        print('Loading "geneid_d" from cache file...', end='')
         _taxid_set, out_d = loadobj(_cache_file)
         assert _taxid_set == taxid_set
-        print 'Done.'
+        print('Done.')
         os.chdir(orig_cwd)
         return out_d
 
@@ -195,7 +197,7 @@ class HomologeneParser(EntrezParserBase):
         with file(self.datafile) as df:
             homologene_d = {}
             doc_li = []
-            print
+            print()
             geneid_d = get_geneid_d(self.species_li)
 
             for line in df:
@@ -275,7 +277,8 @@ class Gene2AccessionParserBase(EntrezParserBase):
             # remove empty rna/protein/genomic field
             _out = {}
             for k, v in out.items():
-                if v: _out[k] = v
+                if v:
+                    _out[k] = v
             if _out:
                 _out = {self.fieldname: _out}
             return _out
@@ -304,7 +307,7 @@ class Gene2UnigeneParser(EntrezParserBase):
 
     def load(self, aslist=False):
         load_start(self.datafile)
-        print
+        print()
         geneid_d = get_geneid_d(self.species_li)
         gene2unigene = tab2dict(self.datafile, (0, 1), 0, alwayslist=0,
                                 includefn=lambda ld: int(ld[0]) in geneid_d)
@@ -327,7 +330,7 @@ class Gene2GOParser(EntrezParserBase):
         gene2go = tab2dict(self.datafile, (1, 2, 3, 4, 5, 6, 7), 0, alwayslist=1,
                            includefn=self.species_filter)
         category_d = {'Function': 'MF',
-                      'Process':  'BP',
+                      'Process': 'BP',
                       'Component': 'CC'}
 
         def _ff(d):
