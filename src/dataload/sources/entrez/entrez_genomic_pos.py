@@ -1,6 +1,9 @@
 '''
 Populates MICROBE gene entries with genomic position data
 Currently updates the 120 microbial taxids that are NCBI Reference Sequences
+
+run get_ref_microbe_taxids function to get an updated file for TAXIDS_FILE
+when it's necessary.
 '''
 import os.path
 from utils.common import (dump, loadobj, get_timestamp)
@@ -21,7 +24,7 @@ TAXIDS_FILE = os.path.join(DATA_FOLDER, "../ref_microbe_taxids_20151014.pyobj")
 DATAFILE = os.path.join(DATA_FOLDER, 'gene/gene2refseq.gz')
 
 
-def load_genedoc():
+def load_genedoc(self):
     """
     Loads gene data from NCBI's refseq2gene.gz file.
     Parses it based on genomic position data and refseq status provided by the
@@ -36,13 +39,14 @@ def load_genedoc():
     gene2genomic_pos_li = tab2list(DATAFILE, cols_included, header=1,
                                    includefn=_includefn)
     count = 0
-
+    last_id = None
     for gene in gene2genomic_pos_li:
         count += 1
         strand = 1 if gene[5] == '+' else -1
+        _id = gene[1]
 
         mgi_dict = {
-            '_id': gene[1],
+            '_id': _id,
             'genomic_pos': {
                 'start': int(gene[3]),
                 'end': int(gene[4]),
@@ -50,13 +54,15 @@ def load_genedoc():
                 'strand': strand
             }
         }
-
-        yield mgi_dict
+        if _id != last_id:
+            # rows with dup _id will be skipped
+            yield mgi_dict
+        last_id = _id
 
     load_done('[%d]' % count)
 
 
-def get_mapping():
+def get_mapping(self):
     mapping = {
         "genomic_pos": {
             "dynamic": False,
