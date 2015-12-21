@@ -12,9 +12,10 @@ def load_genedoc(self):
 
 def get_mapping(self):
     mapping = {
-    	#do not index ec
-        "ec": {"index": "no",
-               "type": "string",
-               "include_in_all": False},
+        "ec": {
+            "type": "string",
+            "analyzer": "string_lowercase",
+            "include_in_all": False
+        },
     }
     return mapping
